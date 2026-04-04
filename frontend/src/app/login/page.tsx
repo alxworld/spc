@@ -3,29 +3,31 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { mockSignIn } from "@/lib/auth";
+import { signin } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email || !password) {
-      setError("Please fill in all fields.");
-      return;
-    }
-    const user = mockSignIn(email, password);
-    if (!user) {
-      setError("Invalid credentials.");
-      return;
-    }
-    if (user.role === "admin" || user.role === "superadmin") {
-      router.push("/admin");
-    } else {
-      router.push("/dashboard");
+    if (!email || !password) { setError("Please fill in all fields."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const user = await signin(email, password);
+      if (user.role === "admin" || user.role === "superadmin") {
+        router.push("/admin");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Sign in failed.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -43,9 +45,7 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-4">
-          {error && (
-            <p className="text-red-400 text-sm text-center">{error}</p>
-          )}
+          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
           <div>
             <label className="block text-white/70 text-sm mb-1.5">Email</label>
             <input
@@ -68,25 +68,17 @@ export default function LoginPage() {
           </div>
           <button
             type="submit"
-            className="w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors mt-2"
+            disabled={loading}
+            className="w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors mt-2 disabled:opacity-60"
           >
-            Sign In
+            {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
 
         <p className="text-center text-white/40 text-sm mt-6">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-spc-blue hover:underline">
-            Register
-          </Link>
+          <Link href="/register" className="text-spc-blue hover:underline">Register</Link>
         </p>
-
-        <div className="mt-6 bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-white/40">
-          <p className="font-medium text-white/60 mb-1">Demo accounts (any password):</p>
-          <p>User: alex@example.com</p>
-          <p>Admin: admin@spc.com</p>
-          <p>Super Admin: superadmin@spc.com</p>
-        </div>
       </div>
     </div>
   );

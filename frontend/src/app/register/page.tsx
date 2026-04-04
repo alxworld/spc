@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { mockRegister } from "@/lib/auth";
+import { signup } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -11,19 +11,22 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name || !email || !password) {
-      setError("Please fill in all fields.");
-      return;
+    if (!name || !email || !password) { setError("Please fill in all fields."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      await signup(name, email, password);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registration failed.");
+    } finally {
+      setLoading(false);
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-    mockRegister(name, email);
-    router.push("/dashboard");
   }
 
   return (
@@ -40,9 +43,7 @@ export default function RegisterPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-4">
-          {error && (
-            <p className="text-red-400 text-sm text-center">{error}</p>
-          )}
+          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
           <div>
             <label className="block text-white/70 text-sm mb-1.5">Full Name</label>
             <input
@@ -75,17 +76,16 @@ export default function RegisterPage() {
           </div>
           <button
             type="submit"
-            className="w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors mt-2"
+            disabled={loading}
+            className="w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors mt-2 disabled:opacity-60"
           >
-            Create Account
+            {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
 
         <p className="text-center text-white/40 text-sm mt-6">
           Already have an account?{" "}
-          <Link href="/login" className="text-spc-blue hover:underline">
-            Login
-          </Link>
+          <Link href="/login" className="text-spc-blue hover:underline">Login</Link>
         </p>
       </div>
     </div>

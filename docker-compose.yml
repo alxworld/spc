@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production-32chars!!}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@spc.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+    restart: unless-stopped

@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getStoredUser, clearUser } from "@/lib/auth";
-import { store } from "@/lib/store";
-import type { User, Booking, BookingStatus, BlockedDate } from "@/types";
+import {
+  getMe, getAdminBookings, updateBookingStatus,
+  getBlockedDates, blockDate, unblockDate, signout
+} from "@/lib/api";
+import type { User, Booking } from "@/lib/api";
 
-const statusColors: Record<BookingStatus, string> = {
+const statusColors: Record<string, string> = {
   pending: "bg-spc-yellow/15 text-spc-yellow",
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-600",
@@ -17,38 +19,51 @@ export default function AdminPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
+  const [blockedDates, setBlockedDates] = useState<{ date: string; reason: string }[]>([]);
   const [blockInput, setBlockInput] = useState("");
   const [blockReason, setBlockReason] = useState("");
   const [activeTab, setActiveTab] = useState<"bookings" | "blocked">("bookings");
 
   useEffect(() => {
-    const stored = getStoredUser();
-    if (!stored || (stored.role !== "admin" && stored.role !== "superadmin")) {
-      router.push("/login");
-      return;
-    }
-    setUser(stored);
-    setBookings([...store.bookings]);
-    setBlockedDates([...store.blockedDates]);
+    getMe()
+      .then((u) => {
+        if (u.role !== "admin" && u.role !== "superadmin") {
+          router.push("/login");
+          return;
+        }
+        setUser(u);
+        return Promise.all([getAdminBookings(), getBlockedDates()]);
+      })
+      .then((results) => {
+        if (results) {
+          setBookings(results[0]);
+          setBlockedDates(results[1]);
+        }
+      })
+      .catch(() => router.push("/login"));
   }, [router]);
 
-  function updateStatus(id: string, status: BookingStatus) {
-    store.updateBookingStatus(id, status);
-    setBookings([...store.bookings]);
+  async function handleUpdateStatus(id: number, status: "approved" | "rejected") {
+    await updateBookingStatus(id, status);
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b));
   }
 
-  function addBlock() {
+  async function handleAddBlock() {
     if (!blockInput) return;
-    store.addBlockedDate(blockInput, blockReason || "Admin block");
-    setBlockedDates([...store.blockedDates]);
+    await blockDate(blockInput, blockReason || "Admin block");
+    setBlockedDates((prev) => [...prev, { date: blockInput, reason: blockReason || "Admin block" }]);
     setBlockInput("");
     setBlockReason("");
   }
 
-  function removeBlock(date: string) {
-    store.removeBlockedDate(date);
-    setBlockedDates([...store.blockedDates]);
+  async function handleRemoveBlock(date: string) {
+    await unblockDate(date);
+    setBlockedDates((prev) => prev.filter((b) => b.date !== date));
+  }
+
+  async function handleSignOut() {
+    await signout().catch(() => {});
+    router.push("/");
   }
 
   if (!user) return null;
@@ -58,7 +73,6 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-spc-navy px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/" className="w-8 h-8 rounded-full bg-spc-yellow flex items-center justify-center">
@@ -71,14 +85,13 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-4">
           <Link href="/admin/users" className="text-white/60 hover:text-white text-sm transition-colors">Users</Link>
-          <button onClick={() => { clearUser(); router.push("/"); }} className="text-white/60 hover:text-white text-sm transition-colors">
+          <button onClick={handleSignOut} className="text-white/60 hover:text-white text-sm transition-colors">
             Sign out
           </button>
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-6 py-10">
-        {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
             { label: "Total Bookings", value: bookings.length, color: "text-spc-blue" },
@@ -93,7 +106,6 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6">
           {(["bookings", "blocked"] as const).map((tab) => (
             <button
@@ -136,13 +148,13 @@ export default function AdminPage() {
                     {booking.status === "pending" && (
                       <>
                         <button
-                          onClick={() => updateStatus(booking.id, "approved")}
+                          onClick={() => handleUpdateStatus(booking.id, "approved")}
                           className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium hover:bg-green-200 transition-colors"
                         >
                           Approve
                         </button>
                         <button
-                          onClick={() => updateStatus(booking.id, "rejected")}
+                          onClick={() => handleUpdateStatus(booking.id, "rejected")}
                           className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-medium hover:bg-red-100 transition-colors"
                         >
                           Reject
@@ -175,7 +187,7 @@ export default function AdminPage() {
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-spc-navy placeholder:text-gray-300 outline-none focus:border-spc-blue"
                 />
                 <button
-                  onClick={addBlock}
+                  onClick={handleAddBlock}
                   className="px-6 py-2.5 bg-spc-purple text-white rounded-xl text-sm font-medium hover:bg-spc-purple/90 transition-colors"
                 >
                   Block
@@ -198,7 +210,7 @@ export default function AdminPage() {
                         <p className="text-spc-gray text-xs">{b.reason}</p>
                       </div>
                       <button
-                        onClick={() => removeBlock(b.date)}
+                        onClick={() => handleRemoveBlock(b.date)}
                         className="text-red-400 hover:text-red-600 text-sm transition-colors"
                       >
                         Remove

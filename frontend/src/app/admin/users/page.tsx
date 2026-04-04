@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getStoredUser, clearUser } from "@/lib/auth";
-import { mockUsers } from "@/lib/mockData";
-import type { User, UserRole } from "@/types";
+import { getMe, getAdminUsers, signout } from "@/lib/api";
+import type { User } from "@/lib/api";
 
-const roleBadge: Record<UserRole, string> = {
+const roleBadge: Record<string, string> = {
   user: "bg-spc-blue/10 text-spc-blue",
   admin: "bg-spc-yellow/15 text-spc-yellow",
   superadmin: "bg-spc-purple/15 text-spc-purple",
@@ -16,28 +15,28 @@ const roleBadge: Record<UserRole, string> = {
 export default function UsersPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    const stored = getStoredUser();
-    if (!stored || (stored.role !== "admin" && stored.role !== "superadmin")) {
-      router.push("/login");
-      return;
-    }
-    setCurrentUser(stored);
+    getMe()
+      .then((u) => {
+        if (u.role !== "admin" && u.role !== "superadmin") {
+          router.push("/login");
+          return;
+        }
+        setCurrentUser(u);
+        return getAdminUsers();
+      })
+      .then((list) => { if (list) setUsers(list); })
+      .catch(() => router.push("/login"));
   }, [router]);
 
-  function promoteToAdmin(id: string) {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role: "admin" as UserRole } : u));
-  }
-
-  function demoteToUser(id: string) {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role: "user" as UserRole } : u));
+  async function handleSignOut() {
+    await signout().catch(() => {});
+    router.push("/");
   }
 
   if (!currentUser) return null;
-
-  const isSuperAdmin = currentUser.role === "superadmin";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -48,10 +47,7 @@ export default function UsersPage() {
           </Link>
           <span className="text-white font-medium">Manage Users</span>
         </div>
-        <button
-          onClick={() => { clearUser(); router.push("/"); }}
-          className="text-white/60 hover:text-white text-sm transition-colors"
-        >
+        <button onClick={handleSignOut} className="text-white/60 hover:text-white text-sm transition-colors">
           Sign out
         </button>
       </div>
@@ -77,28 +73,9 @@ export default function UsersPage() {
                     <p className="text-spc-gray text-xs">{u.email}</p>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${roleBadge[u.role]}`}>
-                    {u.role}
-                  </span>
-                  {isSuperAdmin && u.role === "user" && (
-                    <button
-                      onClick={() => promoteToAdmin(u.id)}
-                      className="px-3 py-1 bg-spc-blue/10 text-spc-blue rounded-full text-xs font-medium hover:bg-spc-blue/20 transition-colors"
-                    >
-                      Make Admin
-                    </button>
-                  )}
-                  {isSuperAdmin && u.role === "admin" && (
-                    <button
-                      onClick={() => demoteToUser(u.id)}
-                      className="px-3 py-1 bg-red-50 text-red-500 rounded-full text-xs font-medium hover:bg-red-100 transition-colors"
-                    >
-                      Remove Admin
-                    </button>
-                  )}
-                </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${roleBadge[u.role]}`}>
+                  {u.role}
+                </span>
               </div>
             ))}
           </div>

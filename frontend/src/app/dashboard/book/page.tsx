@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getStoredUser } from "@/lib/auth";
-import { store } from "@/lib/store";
+import { getMe, getAvailability, createBooking } from "@/lib/api";
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -21,9 +20,10 @@ const MONTH_NAMES = [
 
 export default function BookPage() {
   const router = useRouter();
+  const today = new Date();
   const [authed, setAuthed] = useState(false);
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(3); // April 2026
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("11:00");
@@ -31,13 +31,20 @@ export default function BookPage() {
   const [attendees, setAttendees] = useState("5");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [approvedDates, setApprovedDates] = useState<string[]>([]);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!getStoredUser()) {
-      router.push("/login");
-      return;
-    }
-    setAuthed(true);
+    getMe()
+      .then(() => {
+        setAuthed(true);
+        return getAvailability();
+      })
+      .then((av) => {
+        setApprovedDates(av.approvedDates);
+        setBlockedDates(av.blockedDates.map((b) => b.date));
+      })
+      .catch(() => router.push("/login"));
   }, [router]);
 
   if (!authed) return null;
@@ -51,8 +58,8 @@ export default function BookPage() {
 
   function getDateStatus(day: number): "blocked" | "booked" | "available" {
     const d = toDateStr(day);
-    if (store.blockedDates.some((b) => b.date === d)) return "blocked";
-    if (store.getApprovedDates().includes(d)) return "booked";
+    if (blockedDates.includes(d)) return "blocked";
+    if (approvedDates.includes(d)) return "booked";
     return "available";
   }
 
@@ -68,12 +75,24 @@ export default function BookPage() {
     setSelectedDate("");
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedDate) { setError("Please select a date."); return; }
     if (endTime <= startTime) { setError("End time must be after start time."); return; }
     if (!purpose.trim()) { setError("Please describe the purpose of your booking."); return; }
-    setSubmitted(true);
+    setError("");
+    try {
+      await createBooking({
+        date: selectedDate,
+        start_time: startTime,
+        end_time: endTime,
+        purpose,
+        attendees: parseInt(attendees),
+      });
+      setSubmitted(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Booking failed.");
+    }
   }
 
   if (submitted) {
@@ -82,8 +101,8 @@ export default function BookPage() {
         <div className="bg-white rounded-2xl p-10 max-w-sm w-full text-center border border-gray-100 shadow-sm">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
           </div>
           <h2 className="text-spc-navy font-bold text-xl mb-2">Booking Submitted</h2>
           <p className="text-spc-gray text-sm mb-2">
@@ -116,7 +135,6 @@ export default function BookPage() {
 
       <div className="max-w-3xl mx-auto px-6 py-10">
         <div className="grid md:grid-cols-2 gap-8">
-          {/* Calendar */}
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-4">
               <button onClick={prevMonth} className="text-spc-gray hover:text-spc-navy transition-colors">←</button>
@@ -165,10 +183,8 @@ export default function BookPage() {
             </div>
           </div>
 
-          {/* Booking form */}
           <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
             <h2 className="text-spc-navy font-semibold">Booking Details</h2>
-
             {error && <p className="text-red-500 text-sm">{error}</p>}
 
             <div>

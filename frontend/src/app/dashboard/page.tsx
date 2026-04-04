@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getStoredUser, clearUser } from "@/lib/auth";
-import { store } from "@/lib/store";
-import type { User, Booking, BookingStatus } from "@/types";
+import { getMe, getMyBookings, signout } from "@/lib/api";
+import type { User, Booking } from "@/lib/api";
 
-const statusColors: Record<BookingStatus, string> = {
+const statusColors: Record<string, string> = {
   pending: "bg-spc-yellow/15 text-spc-yellow",
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-600",
@@ -19,17 +18,17 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => {
-    const stored = getStoredUser();
-    if (!stored) {
-      router.push("/login");
-      return;
-    }
-    setUser(stored);
-    setBookings(store.getBookingsByUser(stored.id));
+    getMe()
+      .then((u) => {
+        setUser(u);
+        return getMyBookings();
+      })
+      .then(setBookings)
+      .catch(() => router.push("/login"));
   }, [router]);
 
-  function handleSignOut() {
-    clearUser();
+  async function handleSignOut() {
+    await signout().catch(() => {});
     router.push("/");
   }
 
@@ -37,7 +36,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-spc-navy px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="w-8 h-8 rounded-full bg-spc-yellow flex items-center justify-center">
@@ -59,7 +57,6 @@ export default function DashboardPage() {
           <p className="text-spc-gray text-sm mt-1">Manage your Prayer Hall bookings</p>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
             { label: "Total Bookings", value: bookings.length, color: "text-spc-blue" },
@@ -73,7 +70,6 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Book CTA */}
         <div className="bg-spc-navy rounded-2xl p-6 mb-8 flex items-center justify-between">
           <div>
             <h2 className="text-white font-semibold text-lg">Book the Prayer Hall</h2>
@@ -87,7 +83,6 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Bookings list */}
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-spc-navy font-semibold">My Bookings</h2>
