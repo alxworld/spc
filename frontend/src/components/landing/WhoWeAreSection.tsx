@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 const cards = [
   {
     title: "Our Beginning",
@@ -23,6 +25,18 @@ export default function WhoWeAreSection() {
           <p className="text-spc-gray max-w-xl mx-auto">
             What began as a faithful prayer gathering has grown into a shared space for intercession, worship, and ministry.
           </p>
+        </div>
+
+        {/* Group photo */}
+        <div className="mb-14 rounded-2xl overflow-hidden shadow-lg">
+          <Image
+            src="/group_img.png"
+            alt="SPC prayer group"
+            width={1200}
+            height={500}
+            className="w-full object-cover"
+            priority
+          />
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
