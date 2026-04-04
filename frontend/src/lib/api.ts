@@ -111,3 +111,31 @@ export async function unblockDate(date: string): Promise<void> {
 export async function getAdminUsers(): Promise<User[]> {
   return request("GET", "/api/admin/users");
 }
+
+// --- Chat ---
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface BookingAction {
+  date: string;
+  start_time: string;
+  end_time: string;
+  purpose: string;
+  attendees: number;
+}
+
+export interface ChatResponse {
+  reply: string;
+  booking_action: BookingAction | null;
+}
+
+export async function getChatGreeting(): Promise<ChatResponse> {
+  return request("GET", "/api/chat/greeting");
+}
+
+export async function sendChatMessage(message: string, history: ChatMessage[]): Promise<ChatResponse> {
+  return request("POST", "/api/chat/message", { message, history });
+}

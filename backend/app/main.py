@@ -2,12 +2,15 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
-from app.routers import admin, auth, bookings
+from app.routers import admin, auth, bookings, chat
 
 app = FastAPI(title="SPC Prayer Hall")
 
@@ -25,6 +28,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(bookings.router)
 app.include_router(admin.router)
+app.include_router(chat.router)
 
 
 @app.get("/api/health")
