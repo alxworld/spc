@@ -2,11 +2,11 @@
 
 ## Overview
 
-This is a SaaS website to allow users to book the Prayer Hall.
+This is a SaaS application to allow users to book the Prayer Hall.
 The registered users should be able to check Prayer Hall availability and request for a particular slot/day.
 The admin user can check the requests from the registered users and approve the request.
 The unregistered or all users should be able to see the prayer hall details, mission & vision, prayer timings, Announcements, location map and Contact information.
-The website should be able to show App download link.
+The landing page should be able to show App download link at the bottom of the page.
 There will be AI assistant in the website, through which the user can interact for the know the prayer hall details.
 There will be 3 user types.
 
