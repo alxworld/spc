@@ -1,14 +1,26 @@
 """FastAPI application entry point. Serves API routes and static frontend."""
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
 from app.routers import admin, auth, bookings
 
 app = FastAPI(title="SPC Prayer Hall")
+
+# Allow the Next.js dev server origin in development.
+# In production the frontend is served from the same origin, so this is a no-op.
+_allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth.router)
 app.include_router(bookings.router)
