@@ -127,22 +127,29 @@ Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars. On startup the backend creates 
 - All UI with SPC colour scheme
 - Mock auth (localStorage) and in-memory store — since replaced
 
-### KAN-2 — V1 foundation (done, PR #5)
+### KAN-2 — V1 foundation (done, merged to main)
 - FastAPI backend with SQLite (users, bookings, blocked_dates tables)
 - JWT auth via httponly cookie
 - All booking and admin API endpoints implemented
+- Superadmin seed via `ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars on startup
 - Next.js static build served by FastAPI (single container)
-- Docker + docker-compose setup
+- Docker + docker-compose setup; `env_file: .env` passes secrets into container
 - start/stop scripts for Linux, Mac, Windows
 - All frontend pages wired to real API — mock auth and store removed
-- CORS middleware for local dev
+- CORS middleware for local dev (`CORS_ORIGINS` env var, default `localhost:3000`)
 - Group photo added to "Who We Are" landing section
+- SPA routing fix: explicit catch-all route in FastAPI so direct navigation and refresh work on all pages
 
-### KAN-3 — AI Chat (next)
-- Freeform chat widget on the frontend
-- Backend `/api/chat/*` endpoints using LiteLLM + OpenRouter (Cerebras)
-- User can query availability and request bookings via chat
+### KAN-3 — AI Chat (done, merged to main)
+- Backend `/api/chat/greeting` and `/api/chat/message` endpoints
+- LiteLLM via OpenRouter with Cerebras (`gpt-oss-120b`) inference provider
+- System prompt includes live hall availability + current user's personal bookings from DB
+- Auth-aware: JWT cookie read server-side — unauthenticated users directed to /login before booking
+- AI collects booking details via freeform conversation; emits `BOOKING_ACTION` when confirmed
+- `ChatWidget` fully rewritten: scrollable thread, live responses, booking confirmation card
+- Auth re-checked on every route change (`usePathname`) so confirm button updates after login
+- Input box auto-focuses after each AI response
 
-### KAN-4 — Final polish (pending)
-- UI polish across all screens
-- Note: multi-user auth and booking persistence are already done in KAN-2
+### KAN-4 — Final polish (next)
+- UI polish across all screens to look like a professional Christian SaaS application
+- Note: multi-user auth, booking persistence, and AI chat are already done in KAN-2/KAN-3
