@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
-  getChatGreeting, sendChatMessage, createBooking,
+  getChatGreeting, getMe, sendChatMessage, createBooking,
   type ChatMessage, type BookingAction,
 } from "@/lib/api";
 
@@ -17,12 +18,14 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [bookingState, setBookingState] = useState<Record<number, "idle" | "confirming" | "done" | "error">>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Load greeting when widget opens for the first time
+  // Check auth + load greeting when widget opens for the first time
   useEffect(() => {
     if (open && messages.length === 0) {
+      getMe().then(() => setIsLoggedIn(true)).catch(() => setIsLoggedIn(false));
       getChatGreeting()
         .then((res) => setMessages([{ role: "assistant", content: res.reply }]))
         .catch(() => {});
@@ -112,6 +115,13 @@ export default function ChatWidget() {
                       <p className="text-green-600 font-semibold pt-1">Booking submitted!</p>
                     ) : bookingState[i] === "confirming" ? (
                       <p className="text-spc-gray pt-1">Submitting...</p>
+                    ) : !isLoggedIn ? (
+                      <Link
+                        href="/login"
+                        className="mt-2 block w-full bg-spc-blue text-white rounded-lg py-1.5 font-medium hover:bg-spc-blue/90 transition-colors text-center"
+                      >
+                        Sign in to confirm booking
+                      </Link>
                     ) : (
                       <button
                         onClick={() => handleConfirmBooking(i, msg.booking_action!)}

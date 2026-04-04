@@ -3,10 +3,11 @@ import os
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Cookie, Depends
 from litellm import completion
 from pydantic import BaseModel
 
+from app.auth import decode_token
 from app.database import get_conn
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -31,8 +32,15 @@ Help users with two things:
 1. Answer questions about the prayer hall, its mission, and prayer timings
 2. Help them book the prayer hall or check availability
 
-## Booking workflow
-When a user wants to book, collect these details through natural conversation:
+## Authentication requirement
+The user's login status is: {logged_in}
+
+If the user is NOT logged in and they ask to make a booking, do NOT collect booking details.
+Instead, tell them they need to sign in first and ask them to log in at /login before making a booking.
+You can still answer general questions about the hall for unauthenticated users.
+
+## Booking workflow (only for logged-in users)
+When a logged-in user wants to book, collect these details through natural conversation:
 - Date (YYYY-MM-DD)
 - Start time (HH:MM, between 06:00 and 20:00)
 - End time (HH:MM, must be after start time)
@@ -79,6 +87,7 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: list[Message] = []
+    logged_in: bool = False
 
 
 class BookingAction(BaseModel):
@@ -102,10 +111,20 @@ def greeting() -> ChatResponse:
 
 
 @router.post("/message")
-def chat(body: ChatRequest) -> ChatResponse:
+def chat(body: ChatRequest, access_token: str | None = Cookie(default=None)) -> ChatResponse:
+    # Determine login status from cookie (overrides body flag for security)
+    logged_in = False
+    if access_token:
+        try:
+            decode_token(access_token)
+            logged_in = True
+        except Exception:
+            pass
+
     system = SYSTEM_PROMPT.format(
         availability=_get_availability_context(),
         today=date.today().isoformat(),
+        logged_in="YES — user is signed in" if logged_in else "NO — user is not signed in",
     )
 
     messages = [{"role": "system", "content": system}]
