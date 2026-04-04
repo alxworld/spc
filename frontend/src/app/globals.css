@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-spc-yellow: #ecad0a;
+  --color-spc-blue: #209dd7;
+  --color-spc-purple: #753991;
+  --color-spc-navy: #032147;
+  --color-spc-gray: #888888;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: #ffffff;
+  color: #032147;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
