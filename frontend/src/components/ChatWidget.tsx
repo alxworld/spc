@@ -22,15 +22,17 @@ export default function ChatWidget() {
   const [bookingState, setBookingState] = useState<Record<number, "idle" | "confirming" | "done" | "error">>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Check auth + load greeting when widget opens for the first time
+  // Re-check auth every time the widget opens
   useEffect(() => {
-    if (open && messages.length === 0) {
+    if (open) {
       getMe().then(() => setIsLoggedIn(true)).catch(() => setIsLoggedIn(false));
-      getChatGreeting()
-        .then((res) => setMessages([{ role: "assistant", content: res.reply }]))
-        .catch(() => {});
+      if (messages.length === 0) {
+        getChatGreeting()
+          .then((res) => setMessages([{ role: "assistant", content: res.reply }]))
+          .catch(() => {});
+      }
     }
-  }, [open, messages.length]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to bottom on new messages
   useEffect(() => {
