@@ -52,7 +52,10 @@ BOOKING_ACTION:{{"date":"YYYY-MM-DD","start_time":"HH:MM","end_time":"HH:MM","pu
 
 Do not include the BOOKING_ACTION line until all details are confirmed. Only include it once.
 
-## Availability context
+## This user's bookings
+{user_bookings}
+
+## Hall-wide availability context
 {availability}
 
 ## Today's date
@@ -71,11 +74,29 @@ def _get_availability_context() -> str:
         ).fetchall()]
     lines = []
     if booked:
-        lines.append(f"Already booked dates: {', '.join(booked)}")
+        lines.append(f"Hall-wide approved booking dates: {', '.join(booked)}")
     if blocked:
         lines.append(f"Blocked dates: {', '.join(blocked)}")
     if not lines:
         lines.append("No dates are currently booked or blocked.")
+    return "\n".join(lines)
+
+
+def _get_user_bookings(user_id: int) -> str:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT date, start_time, end_time, purpose, attendees, status "
+            "FROM bookings WHERE user_id = ? ORDER BY date",
+            (user_id,),
+        ).fetchall()
+    if not rows:
+        return "This user has no bookings yet."
+    lines = []
+    for r in rows:
+        lines.append(
+            f"- {r['date']} {r['start_time']}–{r['end_time']}: {r['purpose']} "
+            f"({r['attendees']} attendees) — status: {r['status']}"
+        )
     return "\n".join(lines)
 
 
@@ -112,17 +133,22 @@ def greeting() -> ChatResponse:
 
 @router.post("/message")
 def chat(body: ChatRequest, access_token: str | None = Cookie(default=None)) -> ChatResponse:
-    # Determine login status from cookie (overrides body flag for security)
+    # Determine login status and user id from cookie
     logged_in = False
+    user_id: int | None = None
     if access_token:
         try:
-            decode_token(access_token)
+            payload = decode_token(access_token)
             logged_in = True
+            user_id = int(payload["sub"])
         except Exception:
             pass
 
+    user_bookings = _get_user_bookings(user_id) if user_id else "User is not logged in — no booking data available."
+
     system = SYSTEM_PROMPT.format(
         availability=_get_availability_context(),
+        user_bookings=user_bookings,
         today=date.today().isoformat(),
         logged_in="YES — user is signed in" if logged_in else "NO — user is not signed in",
     )
