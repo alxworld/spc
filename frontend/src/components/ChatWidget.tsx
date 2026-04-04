@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   getChatGreeting, getMe, sendChatMessage, createBooking,
   type ChatMessage, type BookingAction,
@@ -14,6 +15,7 @@ interface DisplayMessage {
 }
 
 export default function ChatWidget() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
@@ -22,15 +24,17 @@ export default function ChatWidget() {
   const [bookingState, setBookingState] = useState<Record<number, "idle" | "confirming" | "done" | "error">>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Re-check auth every time the widget opens
+  // Re-check auth on every route change (widget persists across navigation)
   useEffect(() => {
-    if (open) {
-      getMe().then(() => setIsLoggedIn(true)).catch(() => setIsLoggedIn(false));
-      if (messages.length === 0) {
-        getChatGreeting()
-          .then((res) => setMessages([{ role: "assistant", content: res.reply }]))
-          .catch(() => {});
-      }
+    getMe().then(() => setIsLoggedIn(true)).catch(() => setIsLoggedIn(false));
+  }, [pathname]);
+
+  // Load greeting the first time the widget opens
+  useEffect(() => {
+    if (open && messages.length === 0) {
+      getChatGreeting()
+        .then((res) => setMessages([{ role: "assistant", content: res.reply }]))
+        .catch(() => {});
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
