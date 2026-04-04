@@ -29,6 +29,8 @@ There will be 3 user types.
    • Add/remove admins
    • Full system control
 
+Before we start: the initial implementation is a frontend-only prototype that supports prayer hall booking with no AI chat.
+
 ## Development process
 
 When instructed to build a feature:
@@ -40,7 +42,7 @@ When instructed to build a feature:
 
 ## AI design
 
-When writing code to make calls to LLMs, use your Cerebras skill to use LiteLLM via OpenRouter to the `openrouter/openai/gpt-oss-120b` model with Cerebras as the inference provider. You should use Structured Outputs so that you can interpret the results and populate fields in the legal document.
+When writing code to make calls to LLMs, use your Cerebras skill to use LiteLLM via OpenRouter to the `openrouter/openai/gpt-oss-120b` model with Cerebras as the inference provider. You should use provide the user with option to query for any bookings and its status. They can request for a slot in the chat too. Please ask the questions in a structured to make it happen.
 
 There is an OPENROUTER_API_KEY in the .env file in the project root.
 
