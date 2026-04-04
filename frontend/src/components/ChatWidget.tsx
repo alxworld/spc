@@ -23,6 +23,7 @@ export default function ChatWidget() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [bookingState, setBookingState] = useState<Record<number, "idle" | "confirming" | "done" | "error">>({});
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Re-check auth on every route change (widget persists across navigation)
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function ChatWidget() {
       setMessages([...next, { role: "assistant", content: "Sorry, I couldn't reach the server. Please try again." }]);
     } finally {
       setLoading(false);
+      inputRef.current?.focus();
     }
   }
 
@@ -156,6 +158,7 @@ export default function ChatWidget() {
             <input
               type="text"
               value={input}
+              ref={inputRef}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Ask me anything..."
