@@ -1,14 +1,5 @@
+import Image from "next/image";
 import { teamMembers } from "@/lib/mockData";
-
-function getInitials(name: string) {
-  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
-}
-
-const avatarColors = [
-  "bg-spc-blue", "bg-spc-purple", "bg-spc-yellow", "bg-teal-500",
-  "bg-rose-500", "bg-indigo-500", "bg-emerald-500", "bg-orange-500",
-  "bg-cyan-500", "bg-violet-500", "bg-pink-500",
-];
 
 export default function TeamSection() {
   return (
@@ -25,8 +16,14 @@ export default function TeamSection() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
           {teamMembers.map((member, i) => (
             <div key={member.id} className="bg-white rounded-2xl p-6 text-center border border-gray-100 hover:shadow-md transition-shadow">
-              <div className={`w-16 h-16 rounded-full ${avatarColors[i % avatarColors.length]} mx-auto mb-3 flex items-center justify-center`}>
-                <span className="text-white font-bold text-lg">{getInitials(member.name)}</span>
+              <div className="w-16 h-16 rounded-full mx-auto mb-3 overflow-hidden">
+                <Image
+                  src={`/team/member_${i + 1}.png`}
+                  alt={member.name}
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <p className="text-spc-navy font-semibold text-sm">{member.name}</p>
               <p className="text-spc-gray text-xs mt-1">{member.role}</p>
