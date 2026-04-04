@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent.parent / ".env")
+load_dotenv()  # picks up .env from CWD or any parent dir (local dev only)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
