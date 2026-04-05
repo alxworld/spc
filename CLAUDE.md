@@ -16,7 +16,8 @@ There will be 3 user types.
    • View Prayer Hall availability
    • Book Prayer Hall
    • View booking status
-   • Cancel booking (optional future)
+   • Cancel pending booking
+   • Modify pending booking
 
 2. Admin User should be able to :
    • View all bookings
@@ -103,7 +104,16 @@ Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars. On startup the backend creates 
 ### Bookings (user)
 - `GET /api/bookings` - List current user's bookings (auth required)
 - `POST /api/bookings` - Create booking request (auth required)
+- `PUT /api/bookings/{id}` - Update a pending booking (auth required, owner only)
+- `DELETE /api/bookings/{id}` - Cancel a pending booking (auth required, owner only)
 - `GET /api/bookings/availability` - Approved dates + blocked dates for calendar
+
+#### Booking validation (enforced on POST and PUT)
+- Date must not be in the past
+- Start time: 06:00–20:00; end time: ≤ 20:00; end must be after start
+- Attendees: 1–50
+- Date must not be blocked
+- User cannot have two pending/approved bookings overlapping the same slot (409)
 
 ### Admin
 - `GET /api/admin/bookings` - All bookings (admin required)
@@ -113,9 +123,14 @@ Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars. On startup the backend creates 
 - `DELETE /api/admin/blocked-dates/{date}` - Unblock a date (admin required)
 - `GET /api/admin/users` - List all users (admin required)
 
-### Chat (not yet implemented — KAN-3)
+### Chat
 - `GET /api/chat/greeting` - Get AI greeting
 - `POST /api/chat/message` - Send message, get AI response
+
+Chat response may include one of three action payloads:
+- `booking_action` — new booking details (triggered by `BOOKING_ACTION:` marker)
+- `update_action` — modified booking details incl. `booking_id` (triggered by `UPDATE_ACTION:` marker)
+- `cancel_action` — booking id to cancel (triggered by `CANCEL_ACTION:` marker)
 
 ### Health
 - `GET /api/health` - Health check
@@ -143,12 +158,19 @@ Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars. On startup the backend creates 
 ### KAN-3 — AI Chat (done, merged to main)
 - Backend `/api/chat/greeting` and `/api/chat/message` endpoints
 - LiteLLM via OpenRouter with Cerebras (`gpt-oss-120b`) inference provider
-- System prompt includes live hall availability + current user's personal bookings from DB
+- System prompt includes live hall availability + current user's personal bookings (with booking IDs) from DB
 - Auth-aware: JWT cookie read server-side — unauthenticated users directed to /login before booking
 - AI collects booking details via freeform conversation; emits `BOOKING_ACTION` when confirmed
-- `ChatWidget` fully rewritten: scrollable thread, live responses, booking confirmation card
+- AI can also modify pending bookings (`UPDATE_ACTION`) and cancel pending bookings (`CANCEL_ACTION`)
+- `ChatWidget` handles all three action types with confirmation cards and inline error messages
 - Auth re-checked on every route change (`usePathname`) so confirm button updates after login
-- Input box auto-focuses after each AI response
+- Input box auto-focuses when widget opens and after each AI response
+
+### Booking cancel/update (done, merged to main)
+- `DELETE /api/bookings/{id}` — cancel own pending booking
+- `PUT /api/bookings/{id}` — update own pending booking
+- Full validation on create and update: date not in past, hours 06:00–20:00, attendees 1–50, no overlapping slots, date not blocked
+- `api.ts`: `cancelBooking`, `updateBooking` helpers; `UpdateAction`, `CancelAction` types added
 
 ### KAN-4 — Final polish (next)
 - UI polish across all screens to look like a professional Christian SaaS application
