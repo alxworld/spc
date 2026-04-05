@@ -86,6 +86,20 @@ export async function getAvailability(): Promise<Availability> {
   return request("GET", "/api/bookings/availability");
 }
 
+export async function cancelBooking(id: number): Promise<void> {
+  await request("DELETE", `/api/bookings/${id}`);
+}
+
+export async function updateBooking(id: number, data: {
+  date: string;
+  start_time: string;
+  end_time: string;
+  purpose: string;
+  attendees: number;
+}): Promise<{ id: number; status: string }> {
+  return request("PUT", `/api/bookings/${id}`, data);
+}
+
 // --- Admin ---
 
 export async function getAdminBookings(): Promise<Booking[]> {
@@ -127,9 +141,24 @@ export interface BookingAction {
   attendees: number;
 }
 
+export interface UpdateAction {
+  booking_id: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  purpose: string;
+  attendees: number;
+}
+
+export interface CancelAction {
+  booking_id: number;
+}
+
 export interface ChatResponse {
   reply: string;
   booking_action: BookingAction | null;
+  update_action: UpdateAction | null;
+  cancel_action: CancelAction | null;
 }
 
 export async function getChatGreeting(): Promise<ChatResponse> {

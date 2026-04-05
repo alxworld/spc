@@ -28,29 +28,42 @@ You are warm, helpful, and speak with the heart of a servant in a Christian comm
 - Time slots must start and end on the hour (e.g. 09:00–11:00)
 
 ## Your role
-Help users with two things:
-1. Answer questions about the prayer hall, its mission, and prayer timings
-2. Help them book the prayer hall or check availability
+Help users with:
+1. Answering questions about the prayer hall, its mission, and prayer timings
+2. Booking the prayer hall or checking availability
+3. Modifying or cancelling their existing pending bookings
 
 ## Authentication requirement
 The user's login status is: {logged_in}
 
-If the user is NOT logged in and they ask to make a booking, do NOT collect booking details.
-Instead, tell them they need to sign in first and ask them to log in at /login before making a booking.
-You can still answer general questions about the hall for unauthenticated users.
+If the user is NOT logged in and they ask to make or change a booking, do NOT collect details.
+Instead, tell them they need to sign in first at /login.
+You can still answer general questions for unauthenticated users.
 
 ## Booking workflow (only for logged-in users)
-When a logged-in user wants to book, collect these details through natural conversation:
+
+### New booking
+Collect these details through natural conversation:
 - Date (YYYY-MM-DD)
 - Start time (HH:MM, between 06:00 and 20:00)
 - End time (HH:MM, must be after start time)
 - Purpose of the gathering
 - Expected number of attendees (1–50)
 
-Once you have ALL five details confirmed by the user, end your reply with this exact JSON block on its own line:
+Once ALL five details are confirmed, end your reply with this exact JSON on its own line:
 BOOKING_ACTION:{{"date":"YYYY-MM-DD","start_time":"HH:MM","end_time":"HH:MM","purpose":"...","attendees":N}}
 
-Do not include the BOOKING_ACTION line until all details are confirmed. Only include it once.
+### Modify an existing pending booking
+Ask the user which booking they want to change (show them the list if needed) and what they want to change.
+Collect all updated details, confirm with the user, then end your reply with:
+UPDATE_ACTION:{{"booking_id":N,"date":"YYYY-MM-DD","start_time":"HH:MM","end_time":"HH:MM","purpose":"...","attendees":N}}
+
+### Cancel an existing pending booking
+Ask which booking they want to cancel, confirm they are sure, then end your reply with:
+CANCEL_ACTION:{{"booking_id":N}}
+
+Only pending bookings can be modified or cancelled. If the booking is approved or rejected, tell the user it cannot be changed through chat.
+Do not include any action line until details are fully confirmed. Only emit one action per reply.
 
 ## This user's bookings
 {user_bookings}
@@ -85,7 +98,7 @@ def _get_availability_context() -> str:
 def _get_user_bookings(user_id: int) -> str:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT date, start_time, end_time, purpose, attendees, status "
+            "SELECT id, date, start_time, end_time, purpose, attendees, status "
             "FROM bookings WHERE user_id = ? ORDER BY date",
             (user_id,),
         ).fetchall()
@@ -94,7 +107,7 @@ def _get_user_bookings(user_id: int) -> str:
     lines = []
     for r in rows:
         lines.append(
-            f"- {r['date']} {r['start_time']}–{r['end_time']}: {r['purpose']} "
+            f"- [booking_id={r['id']}] {r['date']} {r['start_time']}–{r['end_time']}: {r['purpose']} "
             f"({r['attendees']} attendees) — status: {r['status']}"
         )
     return "\n".join(lines)
@@ -119,9 +132,24 @@ class BookingAction(BaseModel):
     attendees: int
 
 
+class UpdateAction(BaseModel):
+    booking_id: int
+    date: str
+    start_time: str
+    end_time: str
+    purpose: str
+    attendees: int
+
+
+class CancelAction(BaseModel):
+    booking_id: int
+
+
 class ChatResponse(BaseModel):
     reply: str
     booking_action: Optional[BookingAction] = None
+    update_action: Optional[UpdateAction] = None
+    cancel_action: Optional[CancelAction] = None
 
 
 @router.get("/greeting")
@@ -167,18 +195,33 @@ def chat(body: ChatRequest, access_token: str | None = Cookie(default=None)) -> 
     )
     raw: str = response.choices[0].message.content or ""
 
-    # Parse optional BOOKING_ACTION from reply
-    booking_action = None
-    reply = raw
-    marker = "BOOKING_ACTION:"
-    if marker in raw:
-        idx = raw.index(marker)
-        reply = raw[:idx].strip()
-        json_str = raw[idx + len(marker):].strip()
-        try:
-            import json
-            booking_action = BookingAction(**json.loads(json_str))
-        except Exception:
-            pass  # malformed — ignore and show reply without action
+    # Parse optional action markers from reply
+    import json
 
-    return ChatResponse(reply=reply, booking_action=booking_action)
+    booking_action = None
+    update_action = None
+    cancel_action = None
+    reply = raw
+
+    for marker, model, field in [
+        ("BOOKING_ACTION:", BookingAction, "booking"),
+        ("UPDATE_ACTION:", UpdateAction, "update"),
+        ("CANCEL_ACTION:", CancelAction, "cancel"),
+    ]:
+        if marker in raw:
+            idx = raw.index(marker)
+            reply = raw[:idx].strip()
+            json_str = raw[idx + len(marker):].strip().split("\n")[0]
+            try:
+                data = json.loads(json_str)
+                if field == "booking":
+                    booking_action = BookingAction(**data)
+                elif field == "update":
+                    update_action = UpdateAction(**data)
+                elif field == "cancel":
+                    cancel_action = CancelAction(**data)
+            except Exception:
+                pass
+            break
+
+    return ChatResponse(reply=reply, booking_action=booking_action, update_action=update_action, cancel_action=cancel_action)

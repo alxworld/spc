@@ -4,15 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  getChatGreeting, getMe, sendChatMessage, createBooking,
-  type ChatMessage, type BookingAction,
+  getChatGreeting, getMe, sendChatMessage, createBooking, cancelBooking, updateBooking,
+  type ChatMessage, type BookingAction, type UpdateAction, type CancelAction,
 } from "@/lib/api";
 
 interface DisplayMessage {
   role: "user" | "assistant";
   content: string;
   booking_action?: BookingAction | null;
+  update_action?: UpdateAction | null;
+  cancel_action?: CancelAction | null;
 }
+
+type ActionState = "idle" | "confirming" | "done" | "error";
 
 export default function ChatWidget() {
   const pathname = usePathname();
@@ -21,11 +25,11 @@ export default function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [bookingState, setBookingState] = useState<Record<number, "idle" | "confirming" | "done" | "error">>({});
+  const [actionState, setActionState] = useState<Record<number, ActionState>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Re-check auth on every route change (widget persists across navigation)
+  // Re-check auth on every route change
   useEffect(() => {
     getMe().then(() => setIsLoggedIn(true)).catch(() => setIsLoggedIn(false));
   }, [pathname]);
@@ -38,6 +42,16 @@ export default function ChatWidget() {
         .catch(() => {});
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Focus input when widget opens
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  // Focus input after response arrives (runs post-commit, so disabled is already removed)
+  useEffect(() => {
+    if (!loading && open) inputRef.current?.focus();
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -56,17 +70,22 @@ export default function ChatWidget() {
 
     try {
       const res = await sendChatMessage(text, history);
-      setMessages([...next, { role: "assistant", content: res.reply, booking_action: res.booking_action }]);
+      setMessages([...next, {
+        role: "assistant",
+        content: res.reply,
+        booking_action: res.booking_action,
+        update_action: res.update_action,
+        cancel_action: res.cancel_action,
+      }]);
     } catch {
       setMessages([...next, { role: "assistant", content: "Sorry, I couldn't reach the server. Please try again." }]);
     } finally {
       setLoading(false);
-      inputRef.current?.focus();
     }
   }
 
   async function handleConfirmBooking(idx: number, action: BookingAction) {
-    setBookingState((s) => ({ ...s, [idx]: "confirming" }));
+    setActionState((s) => ({ ...s, [idx]: "confirming" }));
     try {
       await createBooking({
         date: action.date,
@@ -75,13 +94,130 @@ export default function ChatWidget() {
         purpose: action.purpose,
         attendees: action.attendees,
       });
-      setBookingState((s) => ({ ...s, [idx]: "done" }));
+      setActionState((s) => ({ ...s, [idx]: "done" }));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Booking failed.";
-      // Show error inline by appending an assistant message
       setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I couldn't submit the booking: ${msg}` }]);
-      setBookingState((s) => ({ ...s, [idx]: "error" }));
+      setActionState((s) => ({ ...s, [idx]: "error" }));
+    } finally {
+      inputRef.current?.focus();
     }
+  }
+
+  async function handleConfirmUpdate(idx: number, action: UpdateAction) {
+    setActionState((s) => ({ ...s, [idx]: "confirming" }));
+    try {
+      await updateBooking(action.booking_id, {
+        date: action.date,
+        start_time: action.start_time,
+        end_time: action.end_time,
+        purpose: action.purpose,
+        attendees: action.attendees,
+      });
+      setActionState((s) => ({ ...s, [idx]: "done" }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Update failed.";
+      setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I couldn't update the booking: ${msg}` }]);
+      setActionState((s) => ({ ...s, [idx]: "error" }));
+    } finally {
+      inputRef.current?.focus();
+    }
+  }
+
+  async function handleConfirmCancel(idx: number, action: CancelAction) {
+    setActionState((s) => ({ ...s, [idx]: "confirming" }));
+    try {
+      await cancelBooking(action.booking_id);
+      setActionState((s) => ({ ...s, [idx]: "done" }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Cancellation failed.";
+      setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I couldn't cancel the booking: ${msg}` }]);
+      setActionState((s) => ({ ...s, [idx]: "error" }));
+    } finally {
+      inputRef.current?.focus();
+    }
+  }
+
+  function renderActionCard(msg: DisplayMessage, i: number) {
+    const state = actionState[i] ?? "idle";
+
+    if (msg.booking_action) {
+      const a = msg.booking_action;
+      return (
+        <div className="mt-2 w-full max-w-[85%] bg-white border border-spc-blue/30 rounded-xl p-3 text-xs text-spc-navy space-y-1">
+          <p className="font-semibold mb-1">Booking summary</p>
+          <p>Date: <span className="font-medium">{a.date}</span></p>
+          <p>Time: <span className="font-medium">{a.start_time}–{a.end_time}</span></p>
+          <p>Purpose: <span className="font-medium">{a.purpose}</span></p>
+          <p>Attendees: <span className="font-medium">{a.attendees}</span></p>
+          {renderActionButton(state, () => handleConfirmBooking(i, a), "Confirm Booking", "Booking submitted!")}
+        </div>
+      );
+    }
+
+    if (msg.update_action) {
+      const a = msg.update_action;
+      return (
+        <div className="mt-2 w-full max-w-[85%] bg-white border border-spc-blue/30 rounded-xl p-3 text-xs text-spc-navy space-y-1">
+          <p className="font-semibold mb-1">Update booking #{a.booking_id}</p>
+          <p>Date: <span className="font-medium">{a.date}</span></p>
+          <p>Time: <span className="font-medium">{a.start_time}–{a.end_time}</span></p>
+          <p>Purpose: <span className="font-medium">{a.purpose}</span></p>
+          <p>Attendees: <span className="font-medium">{a.attendees}</span></p>
+          {renderActionButton(state, () => handleConfirmUpdate(i, a), "Confirm Update", "Booking updated!")}
+        </div>
+      );
+    }
+
+    if (msg.cancel_action) {
+      const a = msg.cancel_action;
+      return (
+        <div className="mt-2 w-full max-w-[85%] bg-white border border-red-200 rounded-xl p-3 text-xs text-spc-navy space-y-1">
+          <p className="font-semibold mb-1">Cancel booking #{a.booking_id}</p>
+          <p className="text-red-600">This action cannot be undone.</p>
+          {renderActionButton(state, () => handleConfirmCancel(i, a), "Confirm Cancellation", "Booking cancelled!", true)}
+        </div>
+      );
+    }
+
+    return null;
+  }
+
+  function renderActionButton(
+    state: ActionState,
+    onConfirm: () => void,
+    label: string,
+    doneLabel: string,
+    danger = false,
+  ) {
+    if (state === "done") {
+      return <p className="text-green-600 font-semibold pt-1">{doneLabel}</p>;
+    }
+    if (state === "confirming") {
+      return <p className="text-spc-gray pt-1">Processing...</p>;
+    }
+    if (!isLoggedIn) {
+      return (
+        <Link
+          href="/login"
+          className="mt-2 block w-full bg-spc-blue text-white rounded-lg py-1.5 font-medium hover:bg-spc-blue/90 transition-colors text-center"
+        >
+          Sign in to continue
+        </Link>
+      );
+    }
+    return (
+      <button
+        onClick={onConfirm}
+        className={`mt-2 w-full text-white rounded-lg py-1.5 font-medium transition-colors ${
+          danger
+            ? "bg-red-600 hover:bg-red-700"
+            : "bg-spc-purple hover:bg-spc-purple/90"
+        }`}
+      >
+        {label}
+      </button>
+    );
   }
 
   return (
@@ -110,36 +246,7 @@ export default function ChatWidget() {
                 >
                   {msg.content}
                 </div>
-
-                {/* Booking confirmation card */}
-                {msg.booking_action && (
-                  <div className="mt-2 w-full max-w-[85%] bg-white border border-spc-blue/30 rounded-xl p-3 text-xs text-spc-navy space-y-1">
-                    <p className="font-semibold text-spc-navy mb-1">Booking summary</p>
-                    <p>Date: <span className="font-medium">{msg.booking_action.date}</span></p>
-                    <p>Time: <span className="font-medium">{msg.booking_action.start_time}–{msg.booking_action.end_time}</span></p>
-                    <p>Purpose: <span className="font-medium">{msg.booking_action.purpose}</span></p>
-                    <p>Attendees: <span className="font-medium">{msg.booking_action.attendees}</span></p>
-                    {bookingState[i] === "done" ? (
-                      <p className="text-green-600 font-semibold pt-1">Booking submitted!</p>
-                    ) : bookingState[i] === "confirming" ? (
-                      <p className="text-spc-gray pt-1">Submitting...</p>
-                    ) : !isLoggedIn ? (
-                      <Link
-                        href="/login"
-                        className="mt-2 block w-full bg-spc-blue text-white rounded-lg py-1.5 font-medium hover:bg-spc-blue/90 transition-colors text-center"
-                      >
-                        Sign in to confirm booking
-                      </Link>
-                    ) : (
-                      <button
-                        onClick={() => handleConfirmBooking(i, msg.booking_action!)}
-                        className="mt-2 w-full bg-spc-purple text-white rounded-lg py-1.5 font-medium hover:bg-spc-purple/90 transition-colors"
-                      >
-                        Confirm Booking
-                      </button>
-                    )}
-                  </div>
-                )}
+                {renderActionCard(msg, i)}
               </div>
             ))}
 
