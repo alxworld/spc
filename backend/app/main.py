@@ -49,7 +49,7 @@ if FRONTEND_DIR.exists():
     # Serve other public assets (images, icons, etc.)
     app.mount("/public", StaticFiles(directory=FRONTEND_DIR), name="public-assets")
 
-    @app.get("/{full_path:path}")
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"])
     def serve_frontend(full_path: str):
         """Map any path to the corresponding Next.js static HTML file."""
         clean = full_path.strip("/")
