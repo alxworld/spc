@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
+import Navbar from "@/components/Navbar";
 import { getMe, getAvailability, createBooking } from "@/lib/api";
 
 function getDaysInMonth(year: number, month: number) {
@@ -30,6 +32,7 @@ export default function BookPage() {
   const [purpose, setPurpose] = useState("");
   const [attendees, setAttendees] = useState("5");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [approvedDates, setApprovedDates] = useState<string[]>([]);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
@@ -81,6 +84,7 @@ export default function BookPage() {
     if (endTime <= startTime) { setError("End time must be after start time."); return; }
     if (!purpose.trim()) { setError("Please describe the purpose of your booking."); return; }
     setError("");
+    setLoading(true);
     try {
       await createBooking({
         date: selectedDate,
@@ -92,29 +96,33 @@ export default function BookPage() {
       setSubmitted(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Booking failed.");
+    } finally {
+      setLoading(false);
     }
   }
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="bg-white rounded-2xl p-10 max-w-sm w-full text-center border border-gray-100 shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="flex items-center justify-center px-4 pt-28 pb-12">
+          <div className="bg-white rounded-2xl p-10 max-w-sm w-full text-center border border-gray-100 shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h2 className="text-spc-navy font-bold text-xl mb-2">Booking Submitted</h2>
+            <p className="text-spc-gray text-sm mb-2">
+              Your request for <strong>{selectedDate}</strong> ({startTime}–{endTime}) has been submitted.
+            </p>
+            <p className="text-spc-gray text-sm mb-6">An admin will review and approve your request shortly.</p>
+            <p className="text-spc-navy/30 text-xs italic mb-6">"Come to me, all you who are weary, and I will give you rest." — Matthew 11:28</p>
+            <Link
+              href="/dashboard"
+              className="block w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors text-sm"
+            >
+              Back to Dashboard
+            </Link>
           </div>
-          <h2 className="text-spc-navy font-bold text-xl mb-2">Booking Submitted</h2>
-          <p className="text-spc-gray text-sm mb-2">
-            Your request for <strong>{selectedDate}</strong> ({startTime}–{endTime}) has been submitted.
-          </p>
-          <p className="text-spc-gray text-sm mb-6">An admin will review and approve your request shortly.</p>
-          <Link
-            href="/dashboard"
-            className="block w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors text-sm"
-          >
-            Back to Dashboard
-          </Link>
         </div>
       </div>
     );
@@ -126,20 +134,27 @@ export default function BookPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-spc-navy px-6 py-4 flex items-center gap-4">
-        <Link href="/dashboard" className="text-white/60 hover:text-white transition-colors text-sm">
-          ← Dashboard
-        </Link>
-        <span className="text-white font-medium">Book the Prayer Hall</span>
-      </div>
+      <Navbar />
 
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-24 pb-12">
+        <div className="flex items-center gap-3 mb-6">
+          <Link href="/dashboard" className="text-spc-gray hover:text-spc-navy transition-colors">
+            <ChevronLeft className="w-5 h-5" />
+          </Link>
+          <h1 className="text-xl font-bold text-spc-navy">Book the Prayer Hall</h1>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Calendar */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-4">
-              <button onClick={prevMonth} className="text-spc-gray hover:text-spc-navy transition-colors">←</button>
-              <span className="text-spc-navy font-semibold">{MONTH_NAMES[month]} {year}</span>
-              <button onClick={nextMonth} className="text-spc-gray hover:text-spc-navy transition-colors">→</button>
+              <button onClick={prevMonth} className="text-spc-gray hover:text-spc-navy transition-colors p-1 rounded-lg hover:bg-gray-100">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-spc-navy font-semibold text-sm">{MONTH_NAMES[month]} {year}</span>
+              <button onClick={nextMonth} className="text-spc-gray hover:text-spc-navy transition-colors p-1 rounded-lg hover:bg-gray-100">
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="grid grid-cols-7 gap-1 mb-2">
@@ -163,8 +178,8 @@ export default function BookPage() {
                     disabled={!isAvailable}
                     onClick={() => setSelectedDate(dateStr)}
                     className={`
-                      text-xs rounded-lg py-1.5 transition-colors font-medium
-                      ${isSelected ? "bg-spc-purple text-white" : ""}
+                      text-xs rounded-lg py-1.5 transition-all duration-150 font-medium
+                      ${isSelected ? "bg-spc-purple text-white shadow-sm" : ""}
                       ${!isSelected && isAvailable ? "hover:bg-spc-blue/10 text-spc-navy" : ""}
                       ${status === "blocked" ? "bg-red-50 text-red-300 cursor-not-allowed" : ""}
                       ${status === "booked" ? "bg-gray-100 text-gray-400 cursor-not-allowed" : ""}
@@ -177,15 +192,16 @@ export default function BookPage() {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-spc-gray">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-spc-purple inline-block" /> Selected</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-50 border border-red-200 inline-block" /> Blocked</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 inline-block" /> Booked</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-spc-purple inline-block" /> Selected</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-50 border border-red-200 inline-block" /> Blocked</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-100 inline-block" /> Booked</span>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+          {/* Booking form */}
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
             <h2 className="text-spc-navy font-semibold">Booking Details</h2>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            {error && <p className="text-red-500 text-sm bg-red-50 rounded-xl px-4 py-2.5">{error}</p>}
 
             <div>
               <label className="block text-sm text-spc-gray mb-1.5">Selected Date</label>
@@ -202,7 +218,7 @@ export default function BookPage() {
                 <select
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-spc-navy outline-none focus:border-spc-blue"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-spc-navy outline-none focus:border-spc-blue bg-white"
                 >
                   {["06:00","07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"].map((t) => (
                     <option key={t} value={t}>{t}</option>
@@ -214,7 +230,7 @@ export default function BookPage() {
                 <select
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-spc-navy outline-none focus:border-spc-blue"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-spc-navy outline-none focus:border-spc-blue bg-white"
                 >
                   {["07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"].map((t) => (
                     <option key={t} value={t}>{t}</option>
@@ -235,7 +251,7 @@ export default function BookPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-spc-gray mb-1.5">Expected Attendees</label>
+              <label className="block text-sm text-spc-gray mb-1.5">Expected Attendees (1–50)</label>
               <input
                 type="number"
                 min="1"
@@ -248,9 +264,15 @@ export default function BookPage() {
 
             <button
               type="submit"
-              className="w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors text-sm"
+              disabled={loading}
+              className="w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors text-sm disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              Submit Booking Request
+              {loading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Submitting...
+                </>
+              ) : "Submit Booking Request"}
             </button>
           </form>
         </div>

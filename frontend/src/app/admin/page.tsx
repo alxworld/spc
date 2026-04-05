@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { CalendarDays, Clock, CheckCircle2, Ban, Check, X } from "lucide-react";
+import Navbar from "@/components/Navbar";
 import {
   getMe, getAdminBookings, updateBookingStatus,
-  getBlockedDates, blockDate, unblockDate, signout
+  getBlockedDates, blockDate, unblockDate,
 } from "@/lib/api";
 import type { User, Booking } from "@/lib/api";
 
@@ -61,51 +63,47 @@ export default function AdminPage() {
     setBlockedDates((prev) => prev.filter((b) => b.date !== date));
   }
 
-  async function handleSignOut() {
-    await signout().catch(() => {});
-    router.push("/");
-  }
-
   if (!user) return null;
 
   const pending = bookings.filter((b) => b.status === "pending");
-  const approved = bookings.filter((b) => b.status === "approved");
+  const others = bookings.filter((b) => b.status !== "pending");
+
+  const stats = [
+    { label: "Total", value: bookings.length, color: "text-spc-blue", icon: CalendarDays },
+    { label: "Pending", value: pending.length, color: "text-spc-yellow", icon: Clock },
+    { label: "Approved", value: bookings.filter((b) => b.status === "approved").length, color: "text-green-600", icon: CheckCircle2 },
+    { label: "Blocked Dates", value: blockedDates.length, color: "text-red-500", icon: Ban },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-spc-navy px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="w-8 h-8 rounded-full bg-spc-yellow flex items-center justify-center">
-            <span className="text-spc-navy font-bold text-xs">SPC</span>
-          </Link>
-          <span className="text-white font-medium">Admin Dashboard</span>
-          {user.role === "superadmin" && (
-            <span className="bg-spc-purple/30 text-spc-yellow text-xs px-2 py-0.5 rounded-full">Super Admin</span>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/admin/users" className="text-white/60 hover:text-white text-sm transition-colors">Users</Link>
-          <button onClick={handleSignOut} className="text-white/60 hover:text-white text-sm transition-colors">
-            Sign out
-          </button>
-        </div>
-      </div>
+      <Navbar />
 
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: "Total Bookings", value: bookings.length, color: "text-spc-blue" },
-            { label: "Pending", value: pending.length, color: "text-spc-yellow" },
-            { label: "Approved", value: approved.length, color: "text-green-600" },
-            { label: "Blocked Dates", value: blockedDates.length, color: "text-red-500" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white rounded-2xl p-5 border border-gray-100">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-24 pb-12">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-spc-navy">Admin Dashboard</h1>
+            {user.role === "superadmin" && (
+              <span className="inline-block mt-1 bg-spc-purple/15 text-spc-purple text-xs px-2.5 py-0.5 rounded-full font-medium">Super Admin</span>
+            )}
+          </div>
+          <Link href="/admin/users" className="text-sm text-spc-blue hover:underline">
+            Manage Users
+          </Link>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">
+          {stats.map(({ label, value, color, icon: Icon }) => (
+            <div key={label} className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-100">
+              <Icon className={`w-4 h-4 ${color} mb-2`} />
               <p className={`text-2xl font-bold ${color}`}>{value}</p>
               <p className="text-spc-gray text-xs mt-1">{label}</p>
             </div>
           ))}
         </div>
 
+        {/* Tabs */}
         <div className="flex gap-2 mb-6">
           {(["bookings", "blocked"] as const).map((tab) => (
             <button
@@ -117,60 +115,54 @@ export default function AdminPage() {
                   : "bg-white text-spc-gray border border-gray-200 hover:border-spc-blue/40"
               }`}
             >
-              {tab === "bookings" ? "Booking Requests" : "Blocked Dates"}
+              {tab === "bookings" ? `Booking Requests${pending.length > 0 ? ` (${pending.length})` : ""}` : "Blocked Dates"}
             </button>
           ))}
         </div>
 
         {activeTab === "bookings" && (
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-spc-navy font-semibold">All Booking Requests</h2>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {bookings.map((booking) => (
-                <div key={booking.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-spc-navy font-medium text-sm">{booking.userName}</p>
-                      <span className="text-spc-gray text-xs">·</span>
-                      <p className="text-spc-gray text-xs">{booking.userEmail}</p>
-                    </div>
-                    <p className="text-spc-navy text-sm">{booking.purpose}</p>
-                    <p className="text-spc-gray text-xs mt-0.5">
-                      {booking.date} · {booking.startTime}–{booking.endTime} · {booking.attendees} attendees
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[booking.status]}`}>
-                      {booking.status}
-                    </span>
-                    {booking.status === "pending" && (
-                      <>
-                        <button
-                          onClick={() => handleUpdateStatus(booking.id, "approved")}
-                          className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium hover:bg-green-200 transition-colors"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleUpdateStatus(booking.id, "rejected")}
-                          className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-medium hover:bg-red-100 transition-colors"
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                  </div>
+          <div className="space-y-4">
+            {/* Pending section */}
+            {pending.length > 0 && (
+              <div className="bg-white rounded-2xl border border-spc-yellow/30 overflow-hidden">
+                <div className="px-5 sm:px-6 py-3 border-b border-spc-yellow/20 bg-spc-yellow/5 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-spc-yellow" />
+                  <h2 className="text-spc-navy font-semibold text-sm">Pending — Needs Action</h2>
                 </div>
-              ))}
-            </div>
+                <div className="divide-y divide-gray-50">
+                  {pending.map((booking) => (
+                    <BookingRow key={booking.id} booking={booking} onUpdateStatus={handleUpdateStatus} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Processed section */}
+            {others.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-5 sm:px-6 py-3 border-b border-gray-100">
+                  <h2 className="text-spc-navy font-semibold text-sm">Processed Bookings</h2>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {others.map((booking) => (
+                    <BookingRow key={booking.id} booking={booking} onUpdateStatus={handleUpdateStatus} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {bookings.length === 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+                <CalendarDays className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-spc-gray text-sm">No booking requests yet.</p>
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "blocked" && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
               <h2 className="text-spc-navy font-semibold mb-4">Block a Date</h2>
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
@@ -188,15 +180,15 @@ export default function AdminPage() {
                 />
                 <button
                   onClick={handleAddBlock}
-                  className="px-6 py-2.5 bg-spc-purple text-white rounded-xl text-sm font-medium hover:bg-spc-purple/90 transition-colors"
+                  className="px-6 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
                 >
-                  Block
+                  Block Date
                 </button>
               </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100">
+              <div className="px-5 sm:px-6 py-4 border-b border-gray-100">
                 <h2 className="text-spc-navy font-semibold">Blocked Dates</h2>
               </div>
               {blockedDates.length === 0 ? (
@@ -204,7 +196,7 @@ export default function AdminPage() {
               ) : (
                 <div className="divide-y divide-gray-50">
                   {blockedDates.map((b) => (
-                    <div key={b.date} className="px-6 py-4 flex items-center justify-between">
+                    <div key={b.date} className="px-5 sm:px-6 py-4 flex items-center justify-between">
                       <div>
                         <p className="text-spc-navy font-medium text-sm">{b.date}</p>
                         <p className="text-spc-gray text-xs">{b.reason}</p>
@@ -221,6 +213,50 @@ export default function AdminPage() {
               )}
             </div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BookingRow({
+  booking,
+  onUpdateStatus,
+}: {
+  booking: Booking;
+  onUpdateStatus: (id: number, status: "approved" | "rejected") => void;
+}) {
+  return (
+    <div className="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className="text-spc-navy font-medium text-sm">{booking.userName}</p>
+        </div>
+        <p className="text-spc-gray text-xs">{booking.userEmail}</p>
+        <p className="text-spc-navy text-sm mt-1">{booking.purpose}</p>
+        <p className="text-spc-gray text-xs mt-0.5">
+          {booking.date} · {booking.startTime}–{booking.endTime} · {booking.attendees} attendees
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[booking.status]}`}>
+          {booking.status}
+        </span>
+        {booking.status === "pending" && (
+          <>
+            <button
+              onClick={() => onUpdateStatus(booking.id, "approved")}
+              className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-xs font-medium hover:bg-green-200 transition-colors"
+            >
+              <Check className="w-3 h-3" /> Approve
+            </button>
+            <button
+              onClick={() => onUpdateStatus(booking.id, "rejected")}
+              className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-full text-xs font-medium hover:bg-red-100 transition-colors"
+            >
+              <X className="w-3 h-3" /> Reject
+            </button>
+          </>
         )}
       </div>
     </div>

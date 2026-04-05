@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MessageCircle, X, Send } from "lucide-react";
 import {
   getChatGreeting, getMe, sendChatMessage, createBooking, cancelBooking, updateBooking,
   type ChatMessage, type BookingAction, type UpdateAction, type CancelAction,
@@ -221,20 +222,25 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 right-4 sm:right-6 z-50">
       {open && (
-        <div className="mb-4 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden" style={{ height: "480px" }}>
+        <div
+          className="mb-4 w-[calc(100vw-2rem)] sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
+          style={{ height: "min(480px, calc(100vh - 6rem))" }}
+        >
           {/* Header */}
           <div className="bg-spc-navy px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400" />
-              <span className="text-white text-sm font-medium">SPC Assistant</span>
+              <MessageCircle className="w-4 h-4 text-spc-yellow" />
+              <span className="text-white text-sm font-medium">SPC Prayer Assistant</span>
             </div>
-            <button onClick={() => setOpen(false)} className="text-white/60 hover:text-white text-xl leading-none">×</button>
+            <button onClick={() => setOpen(false)} className="text-white/60 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+          <div className="flex-1 overflow-y-auto chat-scroll p-4 flex flex-col gap-3">
             {messages.map((msg, i) => (
               <div key={i} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
                 <div
@@ -252,8 +258,10 @@ export default function ChatWidget() {
 
             {loading && (
               <div className="flex items-start">
-                <div className="bg-spc-blue/10 rounded-2xl rounded-bl-sm px-3 py-2 text-sm text-spc-gray">
-                  Thinking...
+                <div className="bg-spc-blue/10 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-spc-blue/50 animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-spc-blue/50 animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-spc-blue/50 animate-bounce [animation-delay:300ms]" />
                 </div>
               </div>
             )}
@@ -270,14 +278,15 @@ export default function ChatWidget() {
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Ask me anything..."
               disabled={loading}
-              className="flex-1 text-sm border border-gray-200 rounded-full px-3 py-1.5 outline-none focus:border-spc-blue transition-colors disabled:bg-gray-50 disabled:text-gray-400"
+              className="flex-1 text-sm border border-gray-200 rounded-full px-4 py-2 outline-none focus:border-spc-blue transition-colors disabled:bg-gray-50 disabled:text-gray-400"
             />
             <button
               onClick={handleSend}
               disabled={loading || !input.trim()}
-              className="w-8 h-8 rounded-full bg-spc-purple text-white flex items-center justify-center hover:bg-spc-purple/90 transition-colors disabled:opacity-40"
+              className="w-9 h-9 rounded-full bg-spc-purple text-white flex items-center justify-center hover:bg-spc-purple/90 transition-colors disabled:opacity-40 shrink-0"
+              aria-label="Send message"
             >
-              →
+              <Send className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -285,10 +294,10 @@ export default function ChatWidget() {
 
       <button
         onClick={() => setOpen(!open)}
-        className="w-14 h-14 rounded-full bg-spc-purple shadow-lg text-white flex items-center justify-center hover:bg-spc-purple/90 transition-colors font-bold text-lg"
-        aria-label="Open AI assistant"
+        className="w-14 h-14 rounded-full bg-spc-purple shadow-lg shadow-spc-purple/30 text-white flex items-center justify-center hover:bg-spc-purple/90 transition-colors"
+        aria-label={open ? "Close prayer assistant" : "Open prayer assistant"}
       >
-        AI
+        {open ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
       </button>
     </div>
   );

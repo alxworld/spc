@@ -4,11 +4,7 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-const avatarColors = [
-  "bg-spc-blue", "bg-spc-purple", "bg-spc-yellow", "bg-teal-500",
-  "bg-rose-500", "bg-indigo-500", "bg-emerald-500", "bg-orange-500",
-  "bg-cyan-500", "bg-violet-500", "bg-pink-500",
-];
+const avatarColors = ["bg-spc-blue", "bg-spc-purple", "bg-spc-navy"];
 
 export default function TeamSection() {
   return (

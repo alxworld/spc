@@ -2,54 +2,59 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getStoredUser, clearUser } from "@/lib/auth";
-import type { User } from "@/types";
+import { usePathname } from "next/navigation";
+import { Menu, X, Cross } from "lucide-react";
+import { getMe, signout } from "@/lib/api";
+import type { User } from "@/lib/api";
 
 export default function Navbar() {
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    setUser(getStoredUser());
-  }, []);
+    getMe().then(setUser).catch(() => setUser(null));
+  }, [pathname]);
 
-  function handleSignOut() {
-    clearUser();
+  async function handleSignOut() {
+    await signout().catch(() => {});
     setUser(null);
+    setMenuOpen(false);
     window.location.href = "/";
   }
+
+  const navLinks = [
+    { href: "/#who-we-are", label: "Who We Are" },
+    { href: "/#our-team", label: "Our Team" },
+  ];
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-spc-navy/95 backdrop-blur-sm border-b border-white/10">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-spc-yellow flex items-center justify-center">
-            <span className="text-spc-navy font-bold text-sm">SPC</span>
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2.5" onClick={() => setMenuOpen(false)}>
+          <div className="w-8 h-8 rounded-full bg-spc-yellow flex items-center justify-center shrink-0">
+            <Cross className="w-4 h-4 text-spc-navy" strokeWidth={2.5} />
           </div>
-          <span className="text-white font-semibold text-sm hidden sm:block">Saturday Prayer Cell</span>
+          <span className="text-white font-semibold text-sm">Saturday Prayer Cell</span>
         </Link>
 
-        <div className="flex items-center gap-6">
-          <Link href="/#who-we-are" className="text-white/70 hover:text-white text-sm transition-colors">
-            Who we are
-          </Link>
-          <Link href="/#our-team" className="text-white/70 hover:text-white text-sm transition-colors">
-            Our Team
-          </Link>
+        {/* Desktop nav */}
+        <div className="hidden md:flex items-center gap-6">
+          {navLinks.map(({ href, label }) => (
+            <Link key={href} href={href} className="text-white/70 hover:text-white text-sm transition-colors">
+              {label}
+            </Link>
+          ))}
 
           {user ? (
             <div className="flex items-center gap-3">
               {(user.role === "admin" || user.role === "superadmin") && (
-                <Link
-                  href="/admin"
-                  className="text-spc-yellow hover:text-spc-yellow/80 text-sm transition-colors"
-                >
+                <Link href="/admin" className="text-spc-yellow hover:text-spc-yellow/80 text-sm transition-colors">
                   Admin
                 </Link>
               )}
-              <Link
-                href="/dashboard"
-                className="text-white/70 hover:text-white text-sm transition-colors"
-              >
+              <Link href="/dashboard" className="text-white/70 hover:text-white text-sm transition-colors">
                 Dashboard
               </Link>
               <button
@@ -69,14 +74,83 @@ export default function Navbar() {
               </Link>
               <Link
                 href="/register"
-                className="text-sm px-4 py-1.5 rounded-full bg-spc-blue text-white hover:bg-spc-blue/90 transition-colors"
+                className="text-sm px-4 py-1.5 rounded-full bg-spc-yellow text-spc-navy font-medium hover:bg-spc-yellow/90 transition-colors"
               >
                 Register
               </Link>
             </div>
           )}
         </div>
+
+        {/* Mobile hamburger */}
+        <button
+          className="md:hidden text-white/70 hover:text-white transition-colors p-1"
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+        >
+          {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
       </div>
+
+      {/* Mobile slide-down menu */}
+      {menuOpen && (
+        <div className="md:hidden border-t border-white/10 bg-spc-navy/98 px-6 py-4 flex flex-col gap-4">
+          {navLinks.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setMenuOpen(false)}
+              className="text-white/70 hover:text-white text-sm transition-colors"
+            >
+              {label}
+            </Link>
+          ))}
+
+          {user ? (
+            <>
+              {(user.role === "admin" || user.role === "superadmin") && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-spc-yellow text-sm"
+                >
+                  Admin
+                </Link>
+              )}
+              <Link
+                href="/dashboard"
+                onClick={() => setMenuOpen(false)}
+                className="text-white/70 hover:text-white text-sm transition-colors"
+              >
+                Dashboard
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="text-left text-sm text-white/60 hover:text-white transition-colors"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col gap-2 pt-1">
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="text-sm px-4 py-2 rounded-full border border-white/30 text-white/70 hover:text-white text-center transition-colors"
+              >
+                Login
+              </Link>
+              <Link
+                href="/register"
+                onClick={() => setMenuOpen(false)}
+                className="text-sm px-4 py-2 rounded-full bg-spc-yellow text-spc-navy font-medium text-center hover:bg-spc-yellow/90 transition-colors"
+              >
+                Register
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
     </nav>
   );
 }
