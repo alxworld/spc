@@ -40,10 +40,10 @@ def _check_user_slot_conflict(conn, user_id: int, date: str, start_time: str, en
 
 
 def _check_hall_slot_conflict(conn, date: str, start_time: str, end_time: str, exclude_id: int | None = None):
-    """Raise 409 if any pending or approved booking from any user overlaps this slot."""
+    """Raise 409 if any approved booking from any user overlaps this slot."""
     query = """
         SELECT id FROM bookings
-        WHERE date = ? AND status IN ('pending', 'approved')
+        WHERE date = ? AND status = 'approved'
         AND start_time < ? AND end_time > ?
     """
     params = [date, end_time, start_time]
