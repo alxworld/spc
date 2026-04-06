@@ -178,6 +178,26 @@ Chat response may include one of three action payloads:
 - UI polish across all screens to look like a professional Christian SaaS application
 - Icons added across all pages; mobile-friendly layout
 
+### Convex migration — Phase 5 complete (done, merged to main)
+
+Full migration from FastAPI/SQLite to Convex cloud database:
+
+- **Schema**: `bookings`, `blockedDates`, `users` (extends authTables) with all indexes
+- **Auth**: `@convex-dev/auth` with Password provider; RSA JWT_PRIVATE_KEY + JWKS configured
+- **Convex functions**: `bookings.ts`, `admin.ts`, `chat.ts`, `users.ts`, `http.ts`
+- **Frontend wiring** (Phase 5 — all pages):
+  - `login/page.tsx`: `useAuthActions().signIn("password", { flow: "signIn" })`
+  - `register/page.tsx`: `useAuthActions().signIn("password", { flow: "signUp" })`
+  - `Navbar.tsx`: `useConvexAuth()` + `useQuery(api.users.getMe)` + `useAuthActions().signOut()`
+  - `dashboard/page.tsx`: reactive `useQuery(api.bookings.getMyBookings)`
+  - `dashboard/book/page.tsx`: `useQuery(api.bookings.getAvailability)` + `useMutation(api.bookings.createBooking)`
+  - `admin/page.tsx`: `useQuery(api.admin.getAllBookings/getBlockedDates)` + mutations; UI auto-refreshes on mutation
+  - `admin/users/page.tsx`: `useQuery(api.admin.listUsers)`
+  - `ChatWidget.tsx`: `useAction(api.chat.sendMessage)` + booking mutations; field names updated to camelCase
+- All IDs are now Convex string IDs (no longer numeric)
+- `"skip"` string pattern used for conditional query execution (Convex 1.34.x API)
+- Build passes cleanly — all 10 pages compile
+
 ### Code review & security hardening (done)
 
 Full code review (`code_review.md` in repo root) with all issues fixed:
