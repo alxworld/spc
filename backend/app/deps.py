@@ -1,5 +1,5 @@
 """FastAPI dependency: extract and validate the current user from cookie."""
-from fastapi import Cookie, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from jose import JWTError
 
 from app.auth import decode_token
@@ -22,8 +22,8 @@ def get_current_user(access_token: str | None = Cookie(default=None)) -> dict:
     return dict(row)
 
 
-def require_admin(user: dict = None) -> dict:
-    """Use as a dependency after get_current_user."""
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """FastAPI dependency: require the current user to be admin or superadmin."""
     if user["role"] not in ("admin", "superadmin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user

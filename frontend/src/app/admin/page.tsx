@@ -25,6 +25,7 @@ export default function AdminPage() {
   const [blockInput, setBlockInput] = useState("");
   const [blockReason, setBlockReason] = useState("");
   const [activeTab, setActiveTab] = useState<"bookings" | "blocked">("bookings");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     getMe()
@@ -46,21 +47,33 @@ export default function AdminPage() {
   }, [router]);
 
   async function handleUpdateStatus(id: number, status: "approved" | "rejected") {
-    await updateBookingStatus(id, status);
-    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b));
+    try {
+      await updateBookingStatus(id, status);
+      setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update booking.");
+    }
   }
 
   async function handleAddBlock() {
     if (!blockInput) return;
-    await blockDate(blockInput, blockReason || "Admin block");
-    setBlockedDates((prev) => [...prev, { date: blockInput, reason: blockReason || "Admin block" }]);
-    setBlockInput("");
-    setBlockReason("");
+    try {
+      await blockDate(blockInput, blockReason || "Admin block");
+      setBlockedDates((prev) => [...prev, { date: blockInput, reason: blockReason || "Admin block" }]);
+      setBlockInput("");
+      setBlockReason("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to block date.");
+    }
   }
 
   async function handleRemoveBlock(date: string) {
-    await unblockDate(date);
-    setBlockedDates((prev) => prev.filter((b) => b.date !== date));
+    try {
+      await unblockDate(date);
+      setBlockedDates((prev) => prev.filter((b) => b.date !== date));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove block.");
+    }
   }
 
   if (!user) return null;
@@ -91,6 +104,13 @@ export default function AdminPage() {
             Manage Users
           </Link>
         </div>
+
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError("")} className="ml-4 text-red-400 hover:text-red-600">✕</button>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">

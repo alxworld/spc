@@ -61,6 +61,8 @@ export default function BookPage() {
 
   function getDateStatus(day: number): "blocked" | "booked" | "available" {
     const d = toDateStr(day);
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    if (d < todayStr) return "blocked";
     if (blockedDates.includes(d)) return "blocked";
     if (approvedDates.includes(d)) return "booked";
     return "available";

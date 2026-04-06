@@ -3,13 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.database import get_conn
-from app.deps import get_current_user, require_admin
+from app.deps import require_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-
-
-def _admin_user(user: dict = Depends(get_current_user)) -> dict:
-    return require_admin(user)
 
 
 def _booking_row_to_dict(row) -> dict:
@@ -31,7 +27,7 @@ def _booking_row_to_dict(row) -> dict:
 # --- Bookings ---
 
 @router.get("/bookings")
-def list_all_bookings(user: dict = Depends(_admin_user)):
+def list_all_bookings(user: dict = Depends(require_admin)):
     with get_conn() as conn:
         rows = conn.execute(
             """SELECT b.*, u.name, u.email FROM bookings b
@@ -46,7 +42,7 @@ class StatusUpdate(BaseModel):
 
 
 @router.put("/bookings/{booking_id}")
-def update_booking_status(booking_id: int, body: StatusUpdate, user: dict = Depends(_admin_user)):
+def update_booking_status(booking_id: int, body: StatusUpdate, user: dict = Depends(require_admin)):
     if body.status not in ("approved", "rejected", "pending"):
         raise HTTPException(status_code=400, detail="Invalid status")
     with get_conn() as conn:
@@ -66,14 +62,14 @@ class BlockedDateRequest(BaseModel):
 
 
 @router.get("/blocked-dates")
-def list_blocked_dates(user: dict = Depends(_admin_user)):
+def list_blocked_dates(user: dict = Depends(require_admin)):
     with get_conn() as conn:
         rows = conn.execute("SELECT date, reason FROM blocked_dates ORDER BY date").fetchall()
     return [{"date": r["date"], "reason": r["reason"]} for r in rows]
 
 
 @router.post("/blocked-dates", status_code=status.HTTP_201_CREATED)
-def block_date(body: BlockedDateRequest, user: dict = Depends(_admin_user)):
+def block_date(body: BlockedDateRequest, user: dict = Depends(require_admin)):
     with get_conn() as conn:
         conn.execute(
             "INSERT OR IGNORE INTO blocked_dates (date, reason) VALUES (?, ?)",
@@ -83,7 +79,7 @@ def block_date(body: BlockedDateRequest, user: dict = Depends(_admin_user)):
 
 
 @router.delete("/blocked-dates/{date}")
-def unblock_date(date: str, user: dict = Depends(_admin_user)):
+def unblock_date(date: str, user: dict = Depends(require_admin)):
     with get_conn() as conn:
         conn.execute("DELETE FROM blocked_dates WHERE date = ?", (date,))
     return {"ok": True}
@@ -92,7 +88,7 @@ def unblock_date(date: str, user: dict = Depends(_admin_user)):
 # --- Users ---
 
 @router.get("/users")
-def list_users(user: dict = Depends(_admin_user)):
+def list_users(user: dict = Depends(require_admin)):
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC"

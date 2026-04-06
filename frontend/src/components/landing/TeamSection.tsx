@@ -1,4 +1,16 @@
-import { teamMembers } from "@/lib/mockData";
+const teamMembers = [
+  { id: 1, name: "Pastor Samuel", role: "Lead Pastor" },
+  { id: 2, name: "Grace Thomas", role: "Worship Leader" },
+  { id: 3, name: "Daniel Raj", role: "Prayer Coordinator" },
+  { id: 4, name: "Ruth Matthew", role: "Hospitality" },
+  { id: 5, name: "Joseph Philip", role: "Youth Ministry" },
+  { id: 6, name: "Mary John", role: "Intercessor" },
+  { id: 7, name: "Thomas Abraham", role: "Outreach" },
+  { id: 8, name: "Esther George", role: "Children's Ministry" },
+  { id: 9, name: "Aaron David", role: "Media & Tech" },
+  { id: 10, name: "Lydia Paul", role: "Admin" },
+  { id: 11, name: "Simon Peter", role: "Community Care" },
+];
 
 function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();

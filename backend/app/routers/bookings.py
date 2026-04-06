@@ -38,6 +38,21 @@ def _check_user_slot_conflict(conn, user_id: int, date: str, start_time: str, en
     if conn.execute(query, params).fetchone():
         raise HTTPException(status_code=409, detail="You already have a booking overlapping that time slot")
 
+
+def _check_hall_slot_conflict(conn, date: str, start_time: str, end_time: str, exclude_id: int | None = None):
+    """Raise 409 if any approved booking from any user overlaps this slot."""
+    query = """
+        SELECT id FROM bookings
+        WHERE date = ? AND status = 'approved'
+        AND start_time < ? AND end_time > ?
+    """
+    params = [date, end_time, start_time]
+    if exclude_id is not None:
+        query += " AND id != ?"
+        params.append(exclude_id)
+    if conn.execute(query, params).fetchone():
+        raise HTTPException(status_code=409, detail="The hall is already booked for that time slot")
+
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
 
@@ -83,6 +98,7 @@ def create_booking(body: BookingRequest, user: dict = Depends(get_current_user))
     with get_conn() as conn:
         if conn.execute("SELECT 1 FROM blocked_dates WHERE date = ?", (body.date,)).fetchone():
             raise HTTPException(status_code=409, detail="Date is blocked")
+        _check_hall_slot_conflict(conn, body.date, body.start_time, body.end_time)
         _check_user_slot_conflict(conn, user["id"], body.date, body.start_time, body.end_time)
         cursor = conn.execute(
             """INSERT INTO bookings (user_id, date, start_time, end_time, purpose, attendees, status, created_at)
@@ -126,6 +142,7 @@ def update_booking(booking_id: int, body: BookingRequest, user: dict = Depends(g
             raise HTTPException(status_code=409, detail="Only pending bookings can be modified")
         if conn.execute("SELECT 1 FROM blocked_dates WHERE date = ?", (body.date,)).fetchone():
             raise HTTPException(status_code=409, detail="Date is blocked")
+        _check_hall_slot_conflict(conn, body.date, body.start_time, body.end_time, exclude_id=booking_id)
         _check_user_slot_conflict(conn, user["id"], body.date, body.start_time, body.end_time, exclude_id=booking_id)
         conn.execute(
             "UPDATE bookings SET date=?, start_time=?, end_time=?, purpose=?, attendees=? WHERE id=?",

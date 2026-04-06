@@ -1,4 +1,5 @@
 """Auth routes: signup, signin, signout, me."""
+import os
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -32,6 +33,7 @@ def _set_cookie(response: Response, token: str) -> None:
         max_age=COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
+        secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
     )
 
 

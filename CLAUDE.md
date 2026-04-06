@@ -113,7 +113,8 @@ Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars. On startup the backend creates 
 - Start time: 06:00–20:00; end time: ≤ 20:00; end must be after start
 - Attendees: 1–50
 - Date must not be blocked
-- User cannot have two pending/approved bookings overlapping the same slot (409)
+- Hall-wide conflict: any approved booking from any user blocks the slot (409)
+- Per-user conflict: user cannot have two pending/approved bookings overlapping the same slot (409)
 
 ### Admin
 - `GET /api/admin/bookings` - All bookings (admin required)
@@ -172,6 +173,37 @@ Chat response may include one of three action payloads:
 - Full validation on create and update: date not in past, hours 06:00–20:00, attendees 1–50, no overlapping slots, date not blocked
 - `api.ts`: `cancelBooking`, `updateBooking` helpers; `UpdateAction`, `CancelAction` types added
 
-### KAN-4 — Final polish (next)
+### KAN-4 — Final polish (done, merged to main)
+
 - UI polish across all screens to look like a professional Christian SaaS application
-- Note: multi-user auth, booking persistence, and AI chat are already done in KAN-2/KAN-3
+- Icons added across all pages; mobile-friendly layout
+
+### Code review & security hardening (done)
+
+Full code review (`code_review.md` in repo root) with all issues fixed:
+
+- `COOKIE_SECURE` env var added — set to `true` in production to enable secure flag on JWT cookie
+- `SECRET_KEY` default removed; startup raises `RuntimeError` if missing or < 32 chars
+- Path traversal guard added to catch-all static file handler (`_within_frontend()`)
+- `require_admin` refactored to proper FastAPI `Depends(get_current_user)` chain; `_admin_user` wrapper removed from `admin.py`
+- `python-dotenv` added as explicit dependency in `pyproject.toml`
+- Dead KAN-1 mock files deleted (`auth.ts`, `store.ts`, `mockData.ts`, `types/index.ts`); `teamMembers` data inlined into `TeamSection.tsx`
+- `api.ts`: fixed `res.json()` being called on 204 No Content (broke `cancelBooking`)
+- Admin page: error state with dismissible banner added to all three admin action handlers
+- Calendar: past dates now blocked client-side in `getDateStatus()`
+- Chat: `purpose` field truncated to 200 chars before embedding in LLM system prompt; dead `logged_in` field removed from `ChatRequest`
+- SQLite WAL pragma moved from `get_conn()` to `init_db()` (set once, not on every connection)
+- Hall-wide booking conflict check added (`_check_hall_slot_conflict`) — approved bookings from any user block the slot; applies to both booking form and AI chat
+
+### Environment variables
+
+| Variable | Required | Default | Notes |
+| -------- | -------- | ------- | ----- |
+| `SECRET_KEY` | Yes | — | JWT signing key, min 32 chars. Startup fails if missing. |
+| `ADMIN_EMAIL` | Yes | — | Superadmin email seeded on first startup |
+| `ADMIN_PASSWORD` | Yes | — | Superadmin password |
+| `OPENROUTER_API_KEY` | Yes | — | API key for LiteLLM/OpenRouter/Cerebras |
+| `COOKIE_SECURE` | No | `false` | Set `true` behind HTTPS in production |
+| `CORS_ORIGINS` | No | `http://localhost:3000` | Comma-separated allowed origins |
+
+Copy `.env.example` to `.env` and fill in values before running.

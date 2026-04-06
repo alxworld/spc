@@ -106,8 +106,9 @@ def _get_user_bookings(user_id: int) -> str:
         return "This user has no bookings yet."
     lines = []
     for r in rows:
+        purpose = str(r["purpose"])[:200].replace("\n", " ")
         lines.append(
-            f"- [booking_id={r['id']}] {r['date']} {r['start_time']}–{r['end_time']}: {r['purpose']} "
+            f"- [booking_id={r['id']}] {r['date']} {r['start_time']}–{r['end_time']}: {purpose} "
             f"({r['attendees']} attendees) — status: {r['status']}"
         )
     return "\n".join(lines)
@@ -121,7 +122,6 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: list[Message] = []
-    logged_in: bool = False
 
 
 class BookingAction(BaseModel):

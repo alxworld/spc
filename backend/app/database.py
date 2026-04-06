@@ -10,6 +10,7 @@ DB_PATH = Path("/tmp/spc.db")
 
 def init_db() -> None:
     with get_conn() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +60,6 @@ def _seed_admin() -> None:
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
     try:
         yield conn
         conn.commit()

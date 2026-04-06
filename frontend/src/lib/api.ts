@@ -22,6 +22,7 @@ async function request<T>(method: string, path: string, body?: unknown, timeoutM
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail ?? "Request failed");
     }
+    if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
