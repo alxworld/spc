@@ -114,7 +114,8 @@ export default function ChatWidget() {
       });
       setActionState((s) => ({ ...s, [idx]: "done" }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Booking failed.";
+      const e = err as { data?: string } & Error;
+      const msg = e.data ?? e.message ?? "Booking failed.";
       setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I couldn't submit the booking: ${msg}` }]);
       setActionState((s) => ({ ...s, [idx]: "error" }));
     } finally {
@@ -135,7 +136,8 @@ export default function ChatWidget() {
       });
       setActionState((s) => ({ ...s, [idx]: "done" }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Update failed.";
+      const e = err as { data?: string } & Error;
+      const msg = e.data ?? e.message ?? "Update failed.";
       setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I couldn't update the booking: ${msg}` }]);
       setActionState((s) => ({ ...s, [idx]: "error" }));
     } finally {
@@ -149,7 +151,8 @@ export default function ChatWidget() {
       await doCancelBooking({ bookingId: action.bookingId as Id<"bookings"> });
       setActionState((s) => ({ ...s, [idx]: "done" }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Cancellation failed.";
+      const e = err as { data?: string } & Error;
+      const msg = e.data ?? e.message ?? "Cancellation failed.";
       setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I couldn't cancel the booking: ${msg}` }]);
       setActionState((s) => ({ ...s, [idx]: "error" }));
     } finally {

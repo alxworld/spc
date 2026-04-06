@@ -1,19 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Cross, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth } from "convex/react";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { signIn } = useAuthActions();
+  const { isAuthenticated } = useConvexAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect once auth state is confirmed after signUp
+  useEffect(() => {
+    if (isAuthenticated) router.push("/dashboard");
+  }, [isAuthenticated, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,10 +31,9 @@ export default function RegisterPage() {
     setError("");
     try {
       await signIn("password", { email, password, name, flow: "signUp" });
-      router.push("/dashboard");
+      // redirect handled by useEffect above when isAuthenticated becomes true
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed.");
-    } finally {
       setLoading(false);
     }
   }
@@ -35,11 +42,8 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-spc-navy flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-10 h-10 rounded-full bg-spc-yellow flex items-center justify-center">
-              <Cross className="w-5 h-5 text-spc-navy" strokeWidth={2.5} />
-            </div>
-            <span className="text-white font-semibold">Saturday Prayer Cell</span>
+          <Link href="/" className="inline-flex items-center mb-6">
+            <Image src="/landing/spc-logo.svg" alt="Saturday Prayer Cell" width={180} height={45} className="h-11 w-auto" />
           </Link>
           <h1 className="text-2xl font-bold text-white">Create an account</h1>
           <p className="text-white/50 text-sm mt-1">Join the Saturday Prayer Cell community</p>

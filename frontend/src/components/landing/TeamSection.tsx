@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 const teamMembers = [
   { id: 1, name: "Pastor Samuel", role: "Lead Pastor" },
   { id: 2, name: "Grace Thomas", role: "Worship Leader" },
@@ -12,12 +14,6 @@ const teamMembers = [
   { id: 11, name: "Simon Peter", role: "Community Care" },
 ];
 
-function getInitials(name: string) {
-  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
-}
-
-const avatarColors = ["bg-spc-blue", "bg-spc-purple", "bg-spc-navy"];
-
 export default function TeamSection() {
   return (
     <section id="our-team" className="py-24 bg-gray-50">
@@ -31,10 +27,16 @@ export default function TeamSection() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
-          {teamMembers.map((member, i) => (
+          {teamMembers.map((member) => (
             <div key={member.id} className="bg-white rounded-2xl p-6 text-center border border-gray-100 hover:shadow-md transition-shadow">
-              <div className={`w-16 h-16 rounded-full ${avatarColors[i % avatarColors.length]} mx-auto mb-3 flex items-center justify-center`}>
-                <span className="text-white font-bold text-lg">{getInitials(member.name)}</span>
+              <div className="relative w-16 h-16 rounded-full overflow-hidden mx-auto mb-3">
+                <Image
+                  src={`/landing/team-${member.id}.jpg`}
+                  alt={member.name}
+                  fill
+                  className="object-cover"
+                  sizes="64px"
+                />
               </div>
               <p className="text-spc-navy font-semibold text-sm">{member.name}</p>
               <p className="text-spc-gray text-xs mt-1">{member.role}</p>

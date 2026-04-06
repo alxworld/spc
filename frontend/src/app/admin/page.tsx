@@ -57,7 +57,8 @@ export default function AdminPage() {
     try {
       await doUpdateStatus({ bookingId: id, status });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update booking.");
+      const e = err as { data?: string } & Error;
+      setError(e.data ?? e.message ?? "Failed to update booking.");
     }
   }
 
@@ -68,7 +69,8 @@ export default function AdminPage() {
       setBlockInput("");
       setBlockReason("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to block date.");
+      const e = err as { data?: string } & Error;
+      setError(e.data ?? e.message ?? "Failed to block date.");
     }
   }
 
@@ -76,7 +78,8 @@ export default function AdminPage() {
     try {
       await doUnblockDate({ date });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove block.");
+      const e = err as { data?: string } & Error;
+      setError(e.data ?? e.message ?? "Failed to remove block.");
     }
   }
 

@@ -93,7 +93,8 @@ export default function BookPage() {
       });
       setSubmitted(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Booking failed.");
+      const e = err as { data?: string } & Error;
+      setError(e.data ?? e.message ?? "Booking failed.");
     } finally {
       setLoading(false);
     }

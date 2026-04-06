@@ -209,6 +209,49 @@ Full migration from FastAPI/SQLite to Convex cloud database:
 - `"skip"` string used for conditional query execution (Convex 1.34.x, no `skipToken`)
 - Build passes cleanly — all 10 pages compile and are statically exported
 
+### Auth login fix (done)
+
+Root cause: `router.push("/dashboard")` fired immediately after `signIn()` before the `ConvexAuthProvider` had updated its `isAuthenticated` state — dashboard rendered with `isAuthenticated = false` and redirected back to `/login`.
+
+Fix applied to `login/page.tsx` and `register/page.tsx`:
+- Added `useConvexAuth()` to both pages
+- Replaced `router.push("/dashboard")` inside the submit handler with a `useEffect` that watches `isAuthenticated` and redirects when it becomes `true`
+- Removed `setLoading(false)` from `finally` — spinner stays visible during the auth state transition; only reset in `catch`
+
+### ConvexError display fix (done)
+
+Raw Convex error strings with stack traces were shown in the UI instead of clean messages. The Next.js dev-mode overlay also shows these as console errors (dev-only, not visible in production).
+
+Fix: In all `catch` blocks across `dashboard/book/page.tsx`, `admin/page.tsx`, and `ChatWidget.tsx`:
+```typescript
+const e = err as { data?: string } & Error;
+setError(e.data ?? e.message ?? "Fallback message.");
+```
+`ConvexError` thrown server-side carries the clean message in `err.data`; the raw full string is in `err.message`.
+
+### Landing page visual update (done)
+
+All images sourced from the reference site `https://saturdayprayercell.praveenjuge.com/` and stored in `frontend/public/landing/`.
+
+**Assets downloaded** (`public/landing/`):
+- `spc-logo.svg` — official SPC logo
+- `who-we-are-group.jpg` — group photo for "Who We Are" section
+- `story-beginning-overlay.png` — terrace prayer gathering (portrait, 3024×4032)
+- `story-satellite-*.png` — satellite illustration elements (all largely transparent, used for reference only)
+- `team-1.jpg` … `team-11.jpg` — team member portraits
+
+**Changes made:**
+
+| File | Change |
+| ---- | ------ |
+| `Navbar.tsx` | Replaced Cross icon + text with `<Image src="/landing/spc-logo.svg" … className="h-8 w-auto" />` |
+| `login/page.tsx` | Same logo replacement (h-11 → SVG) |
+| `register/page.tsx` | Same logo replacement |
+| `WhoWeAreSection.tsx` | Group photo uses `fill` + `object-[center_28%]` to show faces not ceiling; story cards redesigned with image-on-top layout; "Our Beginning" card uses `story-beginning-overlay.png`; "10×10 to 750 sq ft" card uses `who-we-are-group.jpg`; "Satellite" card uses deep-space CSS background (star-field gradient + CSS orbit rings + Lucide `Satellite` icon with blue glow — the reference site's satellite PNGs are <12% opaque and invisible on dark backgrounds) |
+| `TeamSection.tsx` | Replaced initials avatars with circular `<Image>` portraits from `team-1.jpg` … `team-11.jpg` |
+
+**Known dev-only behaviour:** The Next.js Turbopack overlay shows ConvexError console logs even when caught — this does not appear in production builds.
+
 ### Environment variables
 
 Convex env vars are set in the Convex dashboard (not in a local `.env`):

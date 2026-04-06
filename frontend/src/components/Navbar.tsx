@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
-import { Menu, X, Cross } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
@@ -31,11 +32,8 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-spc-navy/95 backdrop-blur-sm border-b border-white/10">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5" onClick={() => setMenuOpen(false)}>
-          <div className="w-8 h-8 rounded-full bg-spc-yellow flex items-center justify-center shrink-0">
-            <Cross className="w-4 h-4 text-spc-navy" strokeWidth={2.5} />
-          </div>
-          <span className="text-white font-semibold text-sm">Saturday Prayer Cell</span>
+        <Link href="/" className="flex items-center" onClick={() => setMenuOpen(false)}>
+          <Image src="/landing/spc-logo.svg" alt="Saturday Prayer Cell" width={128} height={32} className="h-8 w-auto" priority />
         </Link>
 
         {/* Desktop nav */}
