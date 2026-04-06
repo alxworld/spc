@@ -99,7 +99,7 @@ export const sendMessage = action({
     // Determine auth
     const identity = await ctx.auth.getUserIdentity();
     const loggedIn = identity !== null;
-    const userId = identity ? (identity.subject as Id<"users">) : null;
+    const userId = identity ? (identity.subject.split("|")[0] as Id<"users">) : null;
 
     // Fetch context data via internal queries
     const availability: string = await ctx.runQuery(

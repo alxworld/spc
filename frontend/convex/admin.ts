@@ -10,7 +10,8 @@ import { MutationCtx, QueryCtx } from "./_generated/server";
 async function requireAdmin(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError("Not authenticated");
-  const user = await ctx.db.get(identity.subject as Id<"users">);
+  const userId = identity.subject.split("|")[0] as Id<"users">;
+  const user = await ctx.db.get(userId);
   if (!user || (user.role !== "admin" && user.role !== "superadmin"))
     throw new ConvexError("Admin access required");
   return user;
