@@ -47,43 +47,34 @@ There is an OPENROUTER_API_KEY in the .env file in the project root.
 
 ## Technical design
 
-The entire project is packaged into a single Docker container.
-The backend is in `backend/` — a uv project using FastAPI.
-The frontend is in `frontend/` — Next.js 16 with Tailwind CSS 4, statically exported (`output: 'export'`) and served by FastAPI from `backend/frontend_dist/`.
-The database uses SQLite at `/tmp/spc.db` (reset each time the container starts).
-CORS middleware is enabled for `localhost:3000` during local development.
+The frontend is in `frontend/` — Next.js 16 with Tailwind CSS 4, statically exported (`output: 'export'`).
+The backend is **Convex** (cloud) — all data, auth, and business logic live in `frontend/convex/`.
+No FastAPI or SQLite. No Docker required for development.
+
+### Running locally
 
 ```bash
-# Mac
-scripts/start-mac.sh    # Start
-scripts/stop-mac.sh     # Stop
-
-# Linux
-scripts/start-linux.sh
-scripts/stop-linux.sh
-
-# Windows
-scripts/start-windows.ps1
-scripts/stop-windows.ps1
-```
-
-Backend available at http://localhost:8000
-
-### Running locally (outside Docker)
-
-```bash
-# Terminal 1 — backend
-cd backend
-ADMIN_EMAIL=admin@spc.com ADMIN_PASSWORD=admin123 uv run uvicorn app.main:app --reload
-
-# Terminal 2 — frontend
+# Terminal 1 — keep Convex functions deployed (watches for changes)
 cd frontend
-NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+npx convex dev
+
+# Terminal 2 — Next.js dev server
+cd frontend
+npm run dev
 ```
+
+Frontend available at http://localhost:3000
+Convex dashboard: https://dashboard.convex.dev
+
+### Convex deployment
+
+- Project: `spc` — team: `alexander-s`
+- Deployment: `acoustic-civet-581` (EU West region)
+- URL: `https://acoustic-civet-581.eu-west-1.convex.cloud`
 
 ### Admin bootstrap
 
-Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars. On startup the backend creates a superadmin with those credentials if one does not already exist.
+Promote a user to superadmin via the Convex dashboard by calling `users.seedSuperAdmin` with the user's email, or run it from the Convex CLI.
 
 ## Color Scheme
 
@@ -93,48 +84,51 @@ Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars. On startup the backend creates 
 - Dark Navy: `#032147` (headings)
 - Gray Text: `#888888`
 
-## API Endpoints
+## Convex functions
 
-### Auth
-- `POST /api/auth/signup` - Create new user account, sets JWT cookie
-- `POST /api/auth/signin` - Sign in, sets JWT cookie
-- `POST /api/auth/signout` - Clear auth cookie
-- `GET /api/auth/me` - Get current user info (auth required)
+All backend logic lives in `frontend/convex/`. Auth uses `@convex-dev/auth` with the Password provider.
 
-### Bookings (user)
-- `GET /api/bookings` - List current user's bookings (auth required)
-- `POST /api/bookings` - Create booking request (auth required)
-- `PUT /api/bookings/{id}` - Update a pending booking (auth required, owner only)
-- `DELETE /api/bookings/{id}` - Cancel a pending booking (auth required, owner only)
-- `GET /api/bookings/availability` - Approved dates + blocked dates for calendar
+### Auth (`convex/auth.ts`)
+- `signIn("password", { email, password, flow: "signIn" })` — sign in via `useAuthActions()`
+- `signIn("password", { email, password, name, flow: "signUp" })` — register
+- `signOut()` — sign out
 
-#### Booking validation (enforced on POST and PUT)
+### Users (`convex/users.ts`)
+- `users.getMe` — query: current user record (returns `null` if not authenticated)
+- `users.listAll` — query: all users (admin only)
+- `users.seedSuperAdmin` — mutation: promote user to superadmin by email
+
+### Bookings (`convex/bookings.ts`)
+- `bookings.getMyBookings` — query: current user's bookings (auth required)
+- `bookings.getAvailability` — query: approved dates + blocked dates for calendar (auth required)
+- `bookings.createBooking` — mutation: `{ date, startTime, endTime, purpose, attendees }` (auth required)
+- `bookings.updateBooking` — mutation: `{ bookingId, date, startTime, endTime, purpose, attendees }` (owner, pending only)
+- `bookings.cancelBooking` — mutation: `{ bookingId }` (owner, pending only)
+
+#### Booking validation (enforced on create and update)
 - Date must not be in the past
 - Start time: 06:00–20:00; end time: ≤ 20:00; end must be after start
 - Attendees: 1–50
 - Date must not be blocked
-- Hall-wide conflict: any approved booking from any user blocks the slot (409)
-- Per-user conflict: user cannot have two pending/approved bookings overlapping the same slot (409)
+- Hall-wide conflict: any approved booking from any user blocks the slot
+- Per-user conflict: user cannot have two pending/approved bookings overlapping the same slot
 
-### Admin
-- `GET /api/admin/bookings` - All bookings (admin required)
-- `PUT /api/admin/bookings/{id}` - Approve / reject booking (admin required)
-- `GET /api/admin/blocked-dates` - List blocked dates (admin required)
-- `POST /api/admin/blocked-dates` - Block a date (admin required)
-- `DELETE /api/admin/blocked-dates/{date}` - Unblock a date (admin required)
-- `GET /api/admin/users` - List all users (admin required)
+### Admin (`convex/admin.ts`)
+- `admin.getAllBookings` — query: all bookings with user details (admin only)
+- `admin.updateBookingStatus` — mutation: `{ bookingId, status: "approved"|"rejected"|"pending" }` (admin only)
+- `admin.getBlockedDates` — query: all blocked dates (admin only)
+- `admin.blockDate` — mutation: `{ date, reason }` (admin only)
+- `admin.unblockDate` — mutation: `{ date }` (admin only)
+- `admin.listUsers` — query: all users (admin only)
 
-### Chat
-- `GET /api/chat/greeting` - Get AI greeting
-- `POST /api/chat/message` - Send message, get AI response
+### Chat (`convex/chat.ts`)
+- `chat.getGreeting` — query: static greeting message
+- `chat.sendMessage` — action: `{ message, history }` → `{ reply, bookingAction, updateAction, cancelAction }`
 
-Chat response may include one of three action payloads:
-- `booking_action` — new booking details (triggered by `BOOKING_ACTION:` marker)
-- `update_action` — modified booking details incl. `booking_id` (triggered by `UPDATE_ACTION:` marker)
-- `cancel_action` — booking id to cancel (triggered by `CANCEL_ACTION:` marker)
-
-### Health
-- `GET /api/health` - Health check
+Chat response may include one of three action payloads (camelCase):
+- `bookingAction` — new booking details (triggered by `BOOKING_ACTION:` marker in AI reply)
+- `updateAction` — updated booking details incl. `bookingId` (triggered by `UPDATE_ACTION:`)
+- `cancelAction` — `{ bookingId }` to cancel (triggered by `CANCEL_ACTION:`)
 
 ## Implementation status
 
@@ -178,26 +172,6 @@ Chat response may include one of three action payloads:
 - UI polish across all screens to look like a professional Christian SaaS application
 - Icons added across all pages; mobile-friendly layout
 
-### Convex migration — Phase 5 complete (done, merged to main)
-
-Full migration from FastAPI/SQLite to Convex cloud database:
-
-- **Schema**: `bookings`, `blockedDates`, `users` (extends authTables) with all indexes
-- **Auth**: `@convex-dev/auth` with Password provider; RSA JWT_PRIVATE_KEY + JWKS configured
-- **Convex functions**: `bookings.ts`, `admin.ts`, `chat.ts`, `users.ts`, `http.ts`
-- **Frontend wiring** (Phase 5 — all pages):
-  - `login/page.tsx`: `useAuthActions().signIn("password", { flow: "signIn" })`
-  - `register/page.tsx`: `useAuthActions().signIn("password", { flow: "signUp" })`
-  - `Navbar.tsx`: `useConvexAuth()` + `useQuery(api.users.getMe)` + `useAuthActions().signOut()`
-  - `dashboard/page.tsx`: reactive `useQuery(api.bookings.getMyBookings)`
-  - `dashboard/book/page.tsx`: `useQuery(api.bookings.getAvailability)` + `useMutation(api.bookings.createBooking)`
-  - `admin/page.tsx`: `useQuery(api.admin.getAllBookings/getBlockedDates)` + mutations; UI auto-refreshes on mutation
-  - `admin/users/page.tsx`: `useQuery(api.admin.listUsers)`
-  - `ChatWidget.tsx`: `useAction(api.chat.sendMessage)` + booking mutations; field names updated to camelCase
-- All IDs are now Convex string IDs (no longer numeric)
-- `"skip"` string pattern used for conditional query execution (Convex 1.34.x API)
-- Build passes cleanly — all 10 pages compile
-
 ### Code review & security hardening (done)
 
 Full code review (`code_review.md` in repo root) with all issues fixed:
@@ -215,15 +189,40 @@ Full code review (`code_review.md` in repo root) with all issues fixed:
 - SQLite WAL pragma moved from `get_conn()` to `init_db()` (set once, not on every connection)
 - Hall-wide booking conflict check added (`_check_hall_slot_conflict`) — approved bookings from any user block the slot; applies to both booking form and AI chat
 
+### Convex migration (done, merged to main)
+
+Full migration from FastAPI/SQLite to Convex cloud database:
+
+- **Schema** (`convex/schema.ts`): `bookings`, `blockedDates`, `users` (extends authTables) with all indexes
+- **Auth** (`convex/auth.ts`): `@convex-dev/auth` with Password provider; RSA `JWT_PRIVATE_KEY` + `JWKS` set in Convex dashboard
+- **Convex functions**: `bookings.ts`, `admin.ts`, `chat.ts`, `users.ts`, `http.ts`
+- **Frontend wiring** — all pages replaced fetch-based `api.ts` calls with Convex hooks:
+  - `login/page.tsx`: `useAuthActions().signIn("password", { flow: "signIn" })`
+  - `register/page.tsx`: `useAuthActions().signIn("password", { flow: "signUp" })`
+  - `Navbar.tsx`: `useConvexAuth()` + `useQuery(api.users.getMe)` + `useAuthActions().signOut()`
+  - `dashboard/page.tsx`: reactive `useQuery(api.bookings.getMyBookings)`; auto-redirects admins to `/admin`
+  - `dashboard/book/page.tsx`: `useQuery(api.bookings.getAvailability)` + `useMutation(api.bookings.createBooking)`
+  - `admin/page.tsx`: reactive queries + mutations; UI auto-refreshes without manual state updates
+  - `admin/users/page.tsx`: `useQuery(api.admin.listUsers)`
+  - `ChatWidget.tsx`: `useAction(api.chat.sendMessage)` + booking mutations; action fields use camelCase
+- All IDs are Convex string IDs (no longer numeric)
+- `"skip"` string used for conditional query execution (Convex 1.34.x, no `skipToken`)
+- Build passes cleanly — all 10 pages compile and are statically exported
+
 ### Environment variables
 
-| Variable | Required | Default | Notes |
-| -------- | -------- | ------- | ----- |
-| `SECRET_KEY` | Yes | — | JWT signing key, min 32 chars. Startup fails if missing. |
-| `ADMIN_EMAIL` | Yes | — | Superadmin email seeded on first startup |
-| `ADMIN_PASSWORD` | Yes | — | Superadmin password |
-| `OPENROUTER_API_KEY` | Yes | — | API key for LiteLLM/OpenRouter/Cerebras |
-| `COOKIE_SECURE` | No | `false` | Set `true` behind HTTPS in production |
-| `CORS_ORIGINS` | No | `http://localhost:3000` | Comma-separated allowed origins |
+Convex env vars are set in the Convex dashboard (not in a local `.env`):
 
-Copy `.env.example` to `.env` and fill in values before running.
+| Variable | Where | Notes |
+| -------- | ----- | ----- |
+| `OPENROUTER_API_KEY` | Convex dashboard | API key for OpenRouter/Cerebras AI |
+| `JWT_PRIVATE_KEY` | Convex dashboard | RSA private key for `@convex-dev/auth` |
+| `JWKS` | Convex dashboard | Corresponding public key set |
+| `SITE_URL` | Convex dashboard | Frontend URL (e.g. `http://localhost:3000`) |
+
+Local frontend env (auto-generated by `npx convex dev` into `frontend/.env.local`):
+
+| Variable | Notes |
+| -------- | ----- |
+| `CONVEX_DEPLOYMENT` | Convex deployment ID |
+| `NEXT_PUBLIC_CONVEX_URL` | Convex cloud URL used by the React client |
