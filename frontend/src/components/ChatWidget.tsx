@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, X, Send } from "lucide-react";
-import { useConvexAuth, useQuery, useAction, useMutation } from "convex/react";
+import { useAuth } from "@clerk/nextjs";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
@@ -39,7 +40,7 @@ interface DisplayMessage {
 type ActionState = "idle" | "confirming" | "done" | "error";
 
 export default function ChatWidget() {
-  const { isAuthenticated } = useConvexAuth();
+  const { isSignedIn: isAuthenticated } = useAuth();
   const greeting = useQuery(api.chat.getGreeting);
   const doSendMessage = useAction(api.chat.sendMessage);
   const doCreateBooking = useMutation(api.bookings.createBooking);

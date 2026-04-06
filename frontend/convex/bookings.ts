@@ -13,8 +13,10 @@ const HALL_CLOSE = "20:00";
 async function getAuthUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError("Not authenticated");
-  const userId = identity.subject.split("|")[0] as Id<"users">;
-  const user = await ctx.db.get(userId);
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .unique();
   if (!user) throw new ConvexError("User not found");
   return user;
 }

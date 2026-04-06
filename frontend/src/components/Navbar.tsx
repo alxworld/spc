@@ -4,21 +4,19 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
-import { useConvexAuth } from "convex/react";
-import { useAuthActions } from "@convex-dev/auth/react";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
 export default function Navbar() {
-  const { isAuthenticated } = useConvexAuth();
-  const { signOut } = useAuthActions();
+  const { isSignedIn: isAuthenticated } = useAuth();
+  const { signOut } = useClerk();
   const me = useQuery(api.users.getMe);
   const [menuOpen, setMenuOpen] = useState(false);
 
   async function handleSignOut() {
-    await signOut();
+    await signOut(() => { window.location.href = "/"; });
     setMenuOpen(false);
-    window.location.href = "/";
   }
 
   const navLinks = [

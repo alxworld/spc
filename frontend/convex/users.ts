@@ -1,10 +1,5 @@
-import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
-
-function userIdFromIdentity(subject: string): Id<"users"> {
-  return subject.split("|")[0] as Id<"users">;
-}
+import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
+import { v, ConvexError } from "convex/values";
 
 /** Returns the full user record for the currently authenticated user. */
 export const getMe = query({
@@ -12,30 +7,82 @@ export const getMe = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    return await ctx.db.get(userIdFromIdentity(identity.subject));
+    // Clerk subject is the plain Clerk user ID — no splitting needed
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
   },
 });
 
-/** Returns all users — admin only (role check done in calling code for now). */
+/** Returns all users — admin only. */
 export const listAll = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-    const me = await ctx.db.get(userIdFromIdentity(identity.subject));
+    if (!identity) throw new ConvexError("Not authenticated");
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
     if (!me || (me.role !== "admin" && me.role !== "superadmin")) {
-      throw new Error("Admin access required");
+      throw new ConvexError("Admin access required");
     }
     return await ctx.db.query("users").take(200);
   },
 });
 
-/** Seed superadmin — only runs if no superadmin exists yet. */
-export const seedSuperAdmin = mutation({
-  args: {
-    email: v.string(),
-    role: v.literal("superadmin"),
+/** Internal lookup by Clerk ID — used by the chat action. */
+export const getByClerkId = internalQuery({
+  args: { clerkId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
   },
+});
+
+/** Upsert a user record from Clerk webhook (user.created / user.updated). */
+export const upsertFromClerk = internalMutation({
+  args: {
+    clerkId: v.string(),
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+    if (existing) {
+      await ctx.db.patch(existing._id, { email: args.email, name: args.name });
+    } else {
+      await ctx.db.insert("users", {
+        clerkId: args.clerkId,
+        email: args.email,
+        name: args.name,
+        role: "user",
+      });
+    }
+  },
+});
+
+/** Delete a user record from Clerk webhook (user.deleted). */
+export const deleteByClerkId = internalMutation({
+  args: { clerkId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+    if (user) await ctx.db.delete(user._id);
+  },
+});
+
+/** Promote a user to superadmin by email. */
+export const seedSuperAdmin = mutation({
+  args: { email: v.string(), role: v.literal("superadmin") },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("users")

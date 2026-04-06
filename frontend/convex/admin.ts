@@ -1,6 +1,5 @@
 import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import { Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
 
 // ---------------------------------------------------------------------------
@@ -10,8 +9,10 @@ import { MutationCtx, QueryCtx } from "./_generated/server";
 async function requireAdmin(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError("Not authenticated");
-  const userId = identity.subject.split("|")[0] as Id<"users">;
-  const user = await ctx.db.get(userId);
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .unique();
   if (!user || (user.role !== "admin" && user.role !== "superadmin"))
     throw new ConvexError("Admin access required");
   return user;

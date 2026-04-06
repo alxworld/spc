@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, Clock, CheckCircle2, Ban, Check, X } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { useConvexAuth, useQuery, useMutation } from "convex/react";
+import { useAuth } from "@clerk/nextjs";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -29,7 +30,8 @@ type AdminBooking = {
 
 export default function AdminPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { isSignedIn: isAuthenticated, isLoaded } = useAuth();
+  const isLoading = !isLoaded;
   const me = useQuery(api.users.getMe);
   const bookings = useQuery(api.admin.getAllBookings, isAuthenticated ? undefined : "skip");
   const blockedDates = useQuery(api.admin.getBlockedDates, isAuthenticated ? undefined : "skip");

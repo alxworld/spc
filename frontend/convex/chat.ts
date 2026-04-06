@@ -1,7 +1,6 @@
 import { action, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
 
 const MODEL = "openrouter/openai/gpt-oss-120b";
 const EXTRA_BODY = { provider: { order: ["Cerebras"] } };
@@ -96,10 +95,14 @@ export const sendMessage = action({
   handler: async (ctx, args) => {
     const apiKey = process.env.OPENROUTER_API_KEY ?? "";
 
-    // Determine auth
+    // Determine auth — Clerk subject is the plain user ID (no splitting needed)
     const identity = await ctx.auth.getUserIdentity();
     const loggedIn = identity !== null;
-    const userId = identity ? (identity.subject.split("|")[0] as Id<"users">) : null;
+    const clerkId = identity?.subject ?? null;
+    const userRecord = clerkId
+      ? await ctx.runQuery(internal.users.getByClerkId, { clerkId })
+      : null;
+    const userId = userRecord?._id ?? null;
 
     // Fetch context data via internal queries
     const availability: string = await ctx.runQuery(

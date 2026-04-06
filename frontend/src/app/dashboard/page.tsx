@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, CheckCircle2, Clock, BookOpen, ChevronRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useAuth } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
 const statusColors: Record<string, string> = {
@@ -16,7 +17,8 @@ const statusColors: Record<string, string> = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { isSignedIn: isAuthenticated, isLoaded } = useAuth();
+  const isLoading = !isLoaded;
   const me = useQuery(api.users.getMe);
   const bookings = useQuery(api.bookings.getMyBookings, isAuthenticated ? undefined : "skip");
 

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { useConvexAuth, useQuery, useMutation } from "convex/react";
+import { useAuth } from "@clerk/nextjs";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 
 function getDaysInMonth(year: number, month: number) {
@@ -23,7 +24,8 @@ const MONTH_NAMES = [
 
 export default function BookPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { isSignedIn: isAuthenticated, isLoaded } = useAuth();
+  const isLoading = !isLoaded;
   const availability = useQuery(api.bookings.getAvailability, isAuthenticated ? undefined : "skip");
   const doCreateBooking = useMutation(api.bookings.createBooking);
 
