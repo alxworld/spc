@@ -4,10 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Cross, AlertCircle } from "lucide-react";
-import { signin } from "@/lib/api";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn } = useAuthActions();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,12 +20,8 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const user = await signin(email, password);
-      if (user.role === "admin" || user.role === "superadmin") {
-        router.push("/admin");
-      } else {
-        router.push("/dashboard");
-      }
+      await signIn("password", { email, password, flow: "signIn" });
+      router.push("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Sign in failed.");
     } finally {
@@ -93,7 +90,7 @@ export default function LoginPage() {
           Don&apos;t have an account?{" "}
           <Link href="/register" className="text-spc-blue hover:underline">Register</Link>
         </p>
-        <p className="text-center text-white/20 text-xs mt-4 italic">"Where two or three gather in my name, I am with them." — Matthew 18:20</p>
+        <p className="text-center text-white/20 text-xs mt-4 italic">&quot;Where two or three gather in my name, I am with them.&quot; — Matthew 18:20</p>
       </div>
     </div>
   );

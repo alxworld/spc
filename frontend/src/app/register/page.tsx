@@ -4,10 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Cross, AlertCircle } from "lucide-react";
-import { signup } from "@/lib/api";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { signIn } = useAuthActions();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +22,7 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
     try {
-      await signup(name, email, password);
+      await signIn("password", { email, password, name, flow: "signUp" });
       router.push("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed.");
@@ -102,7 +103,7 @@ export default function RegisterPage() {
           Already have an account?{" "}
           <Link href="/login" className="text-spc-blue hover:underline">Login</Link>
         </p>
-        <p className="text-center text-white/20 text-xs mt-4 italic">"For where two or three gather in my name, there am I with them." — Matthew 18:20</p>
+        <p className="text-center text-white/20 text-xs mt-4 italic">&quot;For where two or three gather in my name, there am I with them.&quot; — Matthew 18:20</p>
       </div>
     </div>
   );

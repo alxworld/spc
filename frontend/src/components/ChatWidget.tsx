@@ -2,54 +2,71 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { MessageCircle, X, Send } from "lucide-react";
-import {
-  getChatGreeting, getMe, sendChatMessage, createBooking, cancelBooking, updateBooking,
-  type ChatMessage, type BookingAction, type UpdateAction, type CancelAction,
-} from "@/lib/api";
+import { useConvexAuth, useQuery, useAction, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
+
+interface BookingAction {
+  date: string;
+  startTime: string;
+  endTime: string;
+  purpose: string;
+  attendees: number;
+}
+
+interface UpdateAction {
+  bookingId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  purpose: string;
+  attendees: number;
+}
+
+interface CancelAction {
+  bookingId: string;
+}
 
 interface DisplayMessage {
   role: "user" | "assistant";
   content: string;
-  booking_action?: BookingAction | null;
-  update_action?: UpdateAction | null;
-  cancel_action?: CancelAction | null;
+  bookingAction?: BookingAction | null;
+  updateAction?: UpdateAction | null;
+  cancelAction?: CancelAction | null;
 }
 
 type ActionState = "idle" | "confirming" | "done" | "error";
 
 export default function ChatWidget() {
-  const pathname = usePathname();
+  const { isAuthenticated } = useConvexAuth();
+  const greeting = useQuery(api.chat.getGreeting);
+  const doSendMessage = useAction(api.chat.sendMessage);
+  const doCreateBooking = useMutation(api.bookings.createBooking);
+  const doUpdateBooking = useMutation(api.bookings.updateBooking);
+  const doCancelBooking = useMutation(api.bookings.cancelBooking);
+
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [actionState, setActionState] = useState<Record<number, ActionState>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Re-check auth on every route change
+  // Show greeting the first time widget opens
   useEffect(() => {
-    getMe().then(() => setIsLoggedIn(true)).catch(() => setIsLoggedIn(false));
-  }, [pathname]);
-
-  // Load greeting the first time the widget opens
-  useEffect(() => {
-    if (open && messages.length === 0) {
-      getChatGreeting()
-        .then((res) => setMessages([{ role: "assistant", content: res.reply }]))
-        .catch(() => {});
+    if (open && messages.length === 0 && greeting) {
+      setMessages([{ role: "assistant", content: greeting.reply }]);
     }
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, greeting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Focus input when widget opens
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  // Focus input after response arrives (runs post-commit, so disabled is already removed)
+  // Focus input after response arrives
   useEffect(() => {
     if (!loading && open) inputRef.current?.focus();
   }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -63,20 +80,20 @@ export default function ChatWidget() {
     const text = input.trim();
     if (!text || loading) return;
 
-    const history: ChatMessage[] = messages.map((m) => ({ role: m.role, content: m.content }));
+    const history = messages.map((m) => ({ role: m.role, content: m.content }));
     const next: DisplayMessage[] = [...messages, { role: "user", content: text }];
     setMessages(next);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await sendChatMessage(text, history);
+      const res = await doSendMessage({ message: text, history });
       setMessages([...next, {
         role: "assistant",
         content: res.reply,
-        booking_action: res.booking_action,
-        update_action: res.update_action,
-        cancel_action: res.cancel_action,
+        bookingAction: res.bookingAction,
+        updateAction: res.updateAction,
+        cancelAction: res.cancelAction,
       }]);
     } catch {
       setMessages([...next, { role: "assistant", content: "Sorry, I couldn't reach the server. Please try again." }]);
@@ -88,10 +105,10 @@ export default function ChatWidget() {
   async function handleConfirmBooking(idx: number, action: BookingAction) {
     setActionState((s) => ({ ...s, [idx]: "confirming" }));
     try {
-      await createBooking({
+      await doCreateBooking({
         date: action.date,
-        start_time: action.start_time,
-        end_time: action.end_time,
+        startTime: action.startTime,
+        endTime: action.endTime,
         purpose: action.purpose,
         attendees: action.attendees,
       });
@@ -108,10 +125,11 @@ export default function ChatWidget() {
   async function handleConfirmUpdate(idx: number, action: UpdateAction) {
     setActionState((s) => ({ ...s, [idx]: "confirming" }));
     try {
-      await updateBooking(action.booking_id, {
+      await doUpdateBooking({
+        bookingId: action.bookingId as Id<"bookings">,
         date: action.date,
-        start_time: action.start_time,
-        end_time: action.end_time,
+        startTime: action.startTime,
+        endTime: action.endTime,
         purpose: action.purpose,
         attendees: action.attendees,
       });
@@ -128,7 +146,7 @@ export default function ChatWidget() {
   async function handleConfirmCancel(idx: number, action: CancelAction) {
     setActionState((s) => ({ ...s, [idx]: "confirming" }));
     try {
-      await cancelBooking(action.booking_id);
+      await doCancelBooking({ bookingId: action.bookingId as Id<"bookings"> });
       setActionState((s) => ({ ...s, [idx]: "done" }));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Cancellation failed.";
@@ -142,13 +160,13 @@ export default function ChatWidget() {
   function renderActionCard(msg: DisplayMessage, i: number) {
     const state = actionState[i] ?? "idle";
 
-    if (msg.booking_action) {
-      const a = msg.booking_action;
+    if (msg.bookingAction) {
+      const a = msg.bookingAction;
       return (
         <div className="mt-2 w-full max-w-[85%] bg-white border border-spc-blue/30 rounded-xl p-3 text-xs text-spc-navy space-y-1">
           <p className="font-semibold mb-1">Booking summary</p>
           <p>Date: <span className="font-medium">{a.date}</span></p>
-          <p>Time: <span className="font-medium">{a.start_time}–{a.end_time}</span></p>
+          <p>Time: <span className="font-medium">{a.startTime}–{a.endTime}</span></p>
           <p>Purpose: <span className="font-medium">{a.purpose}</span></p>
           <p>Attendees: <span className="font-medium">{a.attendees}</span></p>
           {renderActionButton(state, () => handleConfirmBooking(i, a), "Confirm Booking", "Booking submitted!")}
@@ -156,13 +174,13 @@ export default function ChatWidget() {
       );
     }
 
-    if (msg.update_action) {
-      const a = msg.update_action;
+    if (msg.updateAction) {
+      const a = msg.updateAction;
       return (
         <div className="mt-2 w-full max-w-[85%] bg-white border border-spc-blue/30 rounded-xl p-3 text-xs text-spc-navy space-y-1">
-          <p className="font-semibold mb-1">Update booking #{a.booking_id}</p>
+          <p className="font-semibold mb-1">Update booking</p>
           <p>Date: <span className="font-medium">{a.date}</span></p>
-          <p>Time: <span className="font-medium">{a.start_time}–{a.end_time}</span></p>
+          <p>Time: <span className="font-medium">{a.startTime}–{a.endTime}</span></p>
           <p>Purpose: <span className="font-medium">{a.purpose}</span></p>
           <p>Attendees: <span className="font-medium">{a.attendees}</span></p>
           {renderActionButton(state, () => handleConfirmUpdate(i, a), "Confirm Update", "Booking updated!")}
@@ -170,11 +188,11 @@ export default function ChatWidget() {
       );
     }
 
-    if (msg.cancel_action) {
-      const a = msg.cancel_action;
+    if (msg.cancelAction) {
+      const a = msg.cancelAction;
       return (
         <div className="mt-2 w-full max-w-[85%] bg-white border border-red-200 rounded-xl p-3 text-xs text-spc-navy space-y-1">
-          <p className="font-semibold mb-1">Cancel booking #{a.booking_id}</p>
+          <p className="font-semibold mb-1">Cancel booking</p>
           <p className="text-red-600">This action cannot be undone.</p>
           {renderActionButton(state, () => handleConfirmCancel(i, a), "Confirm Cancellation", "Booking cancelled!", true)}
         </div>
@@ -197,7 +215,7 @@ export default function ChatWidget() {
     if (state === "confirming") {
       return <p className="text-spc-gray pt-1">Processing...</p>;
     }
-    if (!isLoggedIn) {
+    if (!isAuthenticated) {
       return (
         <Link
           href="/login"

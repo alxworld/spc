@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, CheckCircle2, Clock, BookOpen, ChevronRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { getMe, getMyBookings } from "@/lib/api";
-import type { User, Booking } from "@/lib/api";
+import { useConvexAuth, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 const statusColors: Record<string, string> = {
   pending: "bg-spc-yellow/15 text-spc-yellow",
@@ -16,20 +16,22 @@ const statusColors: Record<string, string> = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const me = useQuery(api.users.getMe);
+  const bookings = useQuery(api.bookings.getMyBookings, isAuthenticated ? undefined : "skip");
 
   useEffect(() => {
-    getMe()
-      .then((u) => {
-        setUser(u);
-        return getMyBookings();
-      })
-      .then(setBookings)
-      .catch(() => router.push("/login"));
-  }, [router]);
+    if (!isLoading && !isAuthenticated) router.push("/login");
+  }, [isAuthenticated, isLoading, router]);
 
-  if (!user) return null;
+  // Redirect admins to the admin dashboard
+  useEffect(() => {
+    if (me && (me.role === "admin" || me.role === "superadmin")) {
+      router.push("/admin");
+    }
+  }, [me, router]);
+
+  if (isLoading || !me || bookings === undefined) return null;
 
   const stats = [
     { label: "Total Bookings", value: bookings.length, color: "text-spc-blue", icon: CalendarDays },
@@ -43,7 +45,7 @@ export default function DashboardPage() {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-24 pb-12">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-spc-navy">Welcome, {user.name}</h1>
+          <h1 className="text-2xl font-bold text-spc-navy">Welcome, {me.name}</h1>
           <p className="text-spc-gray text-sm mt-1">Manage your Prayer Hall bookings</p>
         </div>
 

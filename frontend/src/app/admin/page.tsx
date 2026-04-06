@@ -5,11 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, Clock, CheckCircle2, Ban, Check, X } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import {
-  getMe, getAdminBookings, updateBookingStatus,
-  getBlockedDates, blockDate, unblockDate,
-} from "@/lib/api";
-import type { User, Booking } from "@/lib/api";
+import { useConvexAuth, useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 const statusColors: Record<string, string> = {
   pending: "bg-spc-yellow/15 text-spc-yellow",
@@ -17,39 +15,47 @@ const statusColors: Record<string, string> = {
   rejected: "bg-red-100 text-red-600",
 };
 
+type AdminBooking = {
+  id: Id<"bookings">;
+  userName: string;
+  userEmail: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  purpose: string;
+  attendees: number;
+  status: "pending" | "approved" | "rejected";
+};
+
 export default function AdminPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [blockedDates, setBlockedDates] = useState<{ date: string; reason: string }[]>([]);
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const me = useQuery(api.users.getMe);
+  const bookings = useQuery(api.admin.getAllBookings, isAuthenticated ? undefined : "skip");
+  const blockedDates = useQuery(api.admin.getBlockedDates, isAuthenticated ? undefined : "skip");
+
+  const doUpdateStatus = useMutation(api.admin.updateBookingStatus);
+  const doBlockDate = useMutation(api.admin.blockDate);
+  const doUnblockDate = useMutation(api.admin.unblockDate);
+
   const [blockInput, setBlockInput] = useState("");
   const [blockReason, setBlockReason] = useState("");
   const [activeTab, setActiveTab] = useState<"bookings" | "blocked">("bookings");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getMe()
-      .then((u) => {
-        if (u.role !== "admin" && u.role !== "superadmin") {
-          router.push("/login");
-          return;
-        }
-        setUser(u);
-        return Promise.all([getAdminBookings(), getBlockedDates()]);
-      })
-      .then((results) => {
-        if (results) {
-          setBookings(results[0]);
-          setBlockedDates(results[1]);
-        }
-      })
-      .catch(() => router.push("/login"));
-  }, [router]);
+    if (!isLoading && !isAuthenticated) router.push("/login");
+  }, [isAuthenticated, isLoading, router]);
 
-  async function handleUpdateStatus(id: number, status: "approved" | "rejected") {
+  useEffect(() => {
+    if (me !== undefined && me !== null && me.role !== "admin" && me.role !== "superadmin") {
+      router.push("/dashboard");
+    }
+  }, [me, router]);
+
+  async function handleUpdateStatus(id: Id<"bookings">, status: "approved" | "rejected") {
     try {
-      await updateBookingStatus(id, status);
-      setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b));
+      await doUpdateStatus({ bookingId: id, status });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update booking.");
     }
@@ -58,8 +64,7 @@ export default function AdminPage() {
   async function handleAddBlock() {
     if (!blockInput) return;
     try {
-      await blockDate(blockInput, blockReason || "Admin block");
-      setBlockedDates((prev) => [...prev, { date: blockInput, reason: blockReason || "Admin block" }]);
+      await doBlockDate({ date: blockInput, reason: blockReason || "Admin block" });
       setBlockInput("");
       setBlockReason("");
     } catch (err) {
@@ -69,14 +74,13 @@ export default function AdminPage() {
 
   async function handleRemoveBlock(date: string) {
     try {
-      await unblockDate(date);
-      setBlockedDates((prev) => prev.filter((b) => b.date !== date));
+      await doUnblockDate({ date });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove block.");
     }
   }
 
-  if (!user) return null;
+  if (isLoading || !me || !bookings || !blockedDates) return null;
 
   const pending = bookings.filter((b) => b.status === "pending");
   const others = bookings.filter((b) => b.status !== "pending");
@@ -96,7 +100,7 @@ export default function AdminPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-spc-navy">Admin Dashboard</h1>
-            {user.role === "superadmin" && (
+            {me.role === "superadmin" && (
               <span className="inline-block mt-1 bg-spc-purple/15 text-spc-purple text-xs px-2.5 py-0.5 rounded-full font-medium">Super Admin</span>
             )}
           </div>
@@ -142,7 +146,6 @@ export default function AdminPage() {
 
         {activeTab === "bookings" && (
           <div className="space-y-4">
-            {/* Pending section */}
             {pending.length > 0 && (
               <div className="bg-white rounded-2xl border border-spc-yellow/30 overflow-hidden">
                 <div className="px-5 sm:px-6 py-3 border-b border-spc-yellow/20 bg-spc-yellow/5 flex items-center gap-2">
@@ -151,13 +154,12 @@ export default function AdminPage() {
                 </div>
                 <div className="divide-y divide-gray-50">
                   {pending.map((booking) => (
-                    <BookingRow key={booking.id} booking={booking} onUpdateStatus={handleUpdateStatus} />
+                    <BookingRow key={booking.id} booking={booking as AdminBooking} onUpdateStatus={handleUpdateStatus} />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Processed section */}
             {others.length > 0 && (
               <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="px-5 sm:px-6 py-3 border-b border-gray-100">
@@ -165,7 +167,7 @@ export default function AdminPage() {
                 </div>
                 <div className="divide-y divide-gray-50">
                   {others.map((booking) => (
-                    <BookingRow key={booking.id} booking={booking} onUpdateStatus={handleUpdateStatus} />
+                    <BookingRow key={booking.id} booking={booking as AdminBooking} onUpdateStatus={handleUpdateStatus} />
                   ))}
                 </div>
               </div>
@@ -243,8 +245,8 @@ function BookingRow({
   booking,
   onUpdateStatus,
 }: {
-  booking: Booking;
-  onUpdateStatus: (id: number, status: "approved" | "rejected") => void;
+  booking: AdminBooking;
+  onUpdateStatus: (id: Id<"bookings">, status: "approved" | "rejected") => void;
 }) {
   return (
     <div className="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

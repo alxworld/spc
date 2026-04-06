@@ -1,24 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Menu, X, Cross } from "lucide-react";
-import { getMe, signout } from "@/lib/api";
-import type { User } from "@/lib/api";
+import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 export default function Navbar() {
-  const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
+  const { isAuthenticated } = useConvexAuth();
+  const { signOut } = useAuthActions();
+  const me = useQuery(api.users.getMe);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    getMe().then(setUser).catch(() => setUser(null));
-  }, [pathname]);
-
   async function handleSignOut() {
-    await signout().catch(() => {});
-    setUser(null);
+    await signOut();
     setMenuOpen(false);
     window.location.href = "/";
   }
@@ -27,6 +24,8 @@ export default function Navbar() {
     { href: "/#who-we-are", label: "Who We Are" },
     { href: "/#our-team", label: "Our Team" },
   ];
+
+  const isAdmin = me?.role === "admin" || me?.role === "superadmin";
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-spc-navy/95 backdrop-blur-sm border-b border-white/10">
@@ -47,9 +46,9 @@ export default function Navbar() {
             </Link>
           ))}
 
-          {user ? (
+          {isAuthenticated ? (
             <div className="flex items-center gap-3">
-              {(user.role === "admin" || user.role === "superadmin") && (
+              {isAdmin && (
                 <Link href="/admin" className="text-spc-yellow hover:text-spc-yellow/80 text-sm transition-colors">
                   Admin
                 </Link>
@@ -106,9 +105,9 @@ export default function Navbar() {
             </Link>
           ))}
 
-          {user ? (
+          {isAuthenticated ? (
             <>
-              {(user.role === "admin" || user.role === "superadmin") && (
+              {isAdmin && (
                 <Link
                   href="/admin"
                   onClick={() => setMenuOpen(false)}

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { getMe, getAvailability, createBooking } from "@/lib/api";
+import { useConvexAuth, useQuery, useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -22,8 +23,11 @@ const MONTH_NAMES = [
 
 export default function BookPage() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const availability = useQuery(api.bookings.getAvailability, isAuthenticated ? undefined : "skip");
+  const doCreateBooking = useMutation(api.bookings.createBooking);
+
   const today = new Date();
-  const [authed, setAuthed] = useState(false);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState("");
@@ -34,23 +38,15 @@ export default function BookPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [approvedDates, setApprovedDates] = useState<string[]>([]);
-  const [blockedDates, setBlockedDates] = useState<string[]>([]);
 
   useEffect(() => {
-    getMe()
-      .then(() => {
-        setAuthed(true);
-        return getAvailability();
-      })
-      .then((av) => {
-        setApprovedDates(av.approvedDates);
-        setBlockedDates(av.blockedDates.map((b) => b.date));
-      })
-      .catch(() => router.push("/login"));
-  }, [router]);
+    if (!isLoading && !isAuthenticated) router.push("/login");
+  }, [isAuthenticated, isLoading, router]);
 
-  if (!authed) return null;
+  if (isLoading || !isAuthenticated) return null;
+
+  const approvedDates = availability?.approvedDates ?? [];
+  const blockedDates = availability?.blockedDates.map((b) => b.date) ?? [];
 
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
@@ -88,10 +84,10 @@ export default function BookPage() {
     setError("");
     setLoading(true);
     try {
-      await createBooking({
+      await doCreateBooking({
         date: selectedDate,
-        start_time: startTime,
-        end_time: endTime,
+        startTime,
+        endTime,
         purpose,
         attendees: parseInt(attendees),
       });
@@ -117,7 +113,7 @@ export default function BookPage() {
               Your request for <strong>{selectedDate}</strong> ({startTime}–{endTime}) has been submitted.
             </p>
             <p className="text-spc-gray text-sm mb-6">An admin will review and approve your request shortly.</p>
-            <p className="text-spc-navy/30 text-xs italic mb-6">"Come to me, all you who are weary, and I will give you rest." — Matthew 11:28</p>
+            <p className="text-spc-navy/30 text-xs italic mb-6">&quot;Come to me, all you who are weary, and I will give you rest.&quot; — Matthew 11:28</p>
             <Link
               href="/dashboard"
               className="block w-full bg-spc-purple text-white rounded-xl py-2.5 font-medium hover:bg-spc-purple/90 transition-colors text-sm"

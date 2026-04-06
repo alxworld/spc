@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { getMe, getAdminUsers } from "@/lib/api";
-import type { User } from "@/lib/api";
+import { useConvexAuth, useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 
 const roleBadge: Record<string, string> = {
   user: "bg-spc-blue/15 text-spc-blue",
@@ -22,24 +22,21 @@ const avatarColor: Record<string, string> = {
 
 export default function UsersPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const me = useQuery(api.users.getMe);
+  const users = useQuery(api.admin.listUsers, isAuthenticated ? undefined : "skip");
 
   useEffect(() => {
-    getMe()
-      .then((u) => {
-        if (u.role !== "admin" && u.role !== "superadmin") {
-          router.push("/login");
-          return;
-        }
-        setCurrentUser(u);
-        return getAdminUsers();
-      })
-      .then((list) => { if (list) setUsers(list); })
-      .catch(() => router.push("/login"));
-  }, [router]);
+    if (!isLoading && !isAuthenticated) router.push("/login");
+  }, [isAuthenticated, isLoading, router]);
 
-  if (!currentUser) return null;
+  useEffect(() => {
+    if (me !== undefined && me !== null && me.role !== "admin" && me.role !== "superadmin") {
+      router.push("/dashboard");
+    }
+  }, [me, router]);
+
+  if (isLoading || !me || users === undefined) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -57,7 +54,6 @@ export default function UsersPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          {/* Table header */}
           <div className="hidden sm:grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-spc-gray uppercase tracking-wider">
             <div className="col-span-5">Name</div>
             <div className="col-span-5">Email</div>
@@ -73,7 +69,6 @@ export default function UsersPage() {
             <div className="divide-y divide-gray-100">
               {users.map((u) => (
                 <div key={u.id} className="px-5 sm:px-6 py-4 flex items-center gap-4 sm:grid sm:grid-cols-12">
-                  {/* Avatar + name */}
                   <div className="flex items-center gap-3 sm:col-span-5">
                     <div className={`w-9 h-9 rounded-full ${avatarColor[u.role] ?? "bg-spc-navy"} flex items-center justify-center shrink-0`}>
                       <span className="text-white font-bold text-xs">
@@ -82,9 +77,7 @@ export default function UsersPage() {
                     </div>
                     <p className="text-spc-navy font-medium text-sm truncate">{u.name}</p>
                   </div>
-                  {/* Email */}
                   <p className="text-spc-gray text-sm hidden sm:block sm:col-span-5 truncate">{u.email}</p>
-                  {/* Role badge */}
                   <div className="ml-auto sm:ml-0 sm:col-span-2">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${roleBadge[u.role]}`}>
                       {u.role}
