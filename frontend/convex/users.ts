@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
 /** Returns the full user record for the currently authenticated user. */
 export const getMe = query({
@@ -7,10 +8,7 @@ export const getMe = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    return await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", identity.email))
-      .unique();
+    return await ctx.db.get(identity.subject as Id<"users">);
   },
 });
 
@@ -20,10 +18,7 @@ export const listAll = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    const me = await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", identity.email))
-      .unique();
+    const me = await ctx.db.get(identity.subject as Id<"users">);
     if (!me || (me.role !== "admin" && me.role !== "superadmin")) {
       throw new Error("Admin access required");
     }

@@ -31,6 +31,12 @@ export default function DashboardPage() {
     }
   }, [me, router]);
 
+  // me === null means authenticated but user record missing — redirect to login
+  if (!isLoading && isAuthenticated && me === null) {
+    router.push("/login");
+    return null;
+  }
+
   if (isLoading || !me || bookings === undefined) return null;
 
   const stats = [
