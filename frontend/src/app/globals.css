@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-spc-yellow: #ecad0a;
+  --color-spc-blue: #209dd7;
+  --color-spc-purple: #753991;
+  --color-spc-navy: #032147;
+  --color-spc-gray: #888888;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #ffffff;
+  color: #032147;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+
+::selection {
+  background: #ecad0a33;
+  color: #032147;
+}
+
+:focus-visible {
+  outline: 2px solid #209dd7;
+  outline-offset: 2px;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: #209dd740;
+  border-radius: 2px;
+}
