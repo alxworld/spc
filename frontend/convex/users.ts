@@ -80,8 +80,8 @@ export const deleteByClerkId = internalMutation({
   },
 });
 
-/** Promote a user to superadmin by email. */
-export const seedSuperAdmin = mutation({
+/** Promote a user to superadmin by email. Internal only — run from the Convex dashboard. */
+export const seedSuperAdmin = internalMutation({
   args: { email: v.string(), role: v.literal("superadmin") },
   handler: async (ctx, args) => {
     const existing = await ctx.db

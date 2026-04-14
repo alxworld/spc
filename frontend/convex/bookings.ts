@@ -37,6 +37,10 @@ function validateFields(args: {
     throw new ConvexError("End time must be after start time");
   if (args.attendees < 1 || args.attendees > 50)
     throw new ConvexError("Attendees must be between 1 and 50");
+  if (args.purpose.trim().length === 0)
+    throw new ConvexError("Purpose cannot be empty");
+  if (args.purpose.length > 500)
+    throw new ConvexError("Purpose must be 500 characters or less");
 }
 
 async function checkHallConflict(
@@ -51,7 +55,7 @@ async function checkHallConflict(
     .withIndex("by_date_and_status", (q) =>
       q.eq("date", date).eq("status", "approved")
     )
-    .take(100);
+    .collect();
 
   const conflict = approved.find(
     (b) =>
@@ -125,10 +129,12 @@ export const getAvailability = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("Not authenticated");
 
+    const today = new Date().toISOString().slice(0, 10);
     const approved = await ctx.db
       .query("bookings")
       .withIndex("by_status", (q) => q.eq("status", "approved"))
-      .take(500);
+      .filter((q) => q.gte(q.field("date"), today))
+      .take(365);
 
     const blocked = await ctx.db
       .query("blockedDates")
@@ -238,10 +244,12 @@ export const updateBooking = mutation({
 export const getAvailabilityContext = internalQuery({
   args: {},
   handler: async (ctx) => {
+    const today = new Date().toISOString().slice(0, 10);
     const approved = await ctx.db
       .query("bookings")
       .withIndex("by_status", (q) => q.eq("status", "approved"))
-      .take(500);
+      .filter((q) => q.gte(q.field("date"), today))
+      .take(365);
     const blocked = await ctx.db.query("blockedDates").order("asc").take(200);
 
     const lines: string[] = [];
@@ -268,7 +276,7 @@ export const getUserBookingsContext = internalQuery({
     return bookings
       .map(
         (b) =>
-          `- [booking_id=${b._id}] ${b.date} ${b.startTime}–${b.endTime}: ${b.purpose.slice(0, 200).replace(/\n/g, " ")} (${b.attendees} attendees) — status: ${b.status}`
+          `- [booking_id=${b._id}] ${b.date} ${b.startTime}–${b.endTime}: <user-data>${b.purpose.slice(0, 200).replace(/\n/g, " ")}</user-data> (${b.attendees} attendees) — status: ${b.status}`
       )
       .join("\n");
   },

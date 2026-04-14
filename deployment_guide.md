@@ -1,315 +1,316 @@
-# SPC Deployment Guide
+# SPC Prayer Hall Booking — Deployment Guide
 
-Hosting: **Frontend → Vercel** | **Backend → Convex Cloud** | **Auth → Clerk**
-Domain: **surfbible.in** (GoDaddy)
-
-## Overview of steps
-
-1. Push code to GitHub
-2. Create Vercel project and deploy
-3. Add custom domain in Vercel
-4. Add DNS records in GoDaddy for Vercel
-5. Switch Clerk to Production and configure domain
-6. Add DNS records in GoDaddy for Clerk
-7. Set all environment variables
-8. Deploy Convex backend to production
-9. Final redeploy and smoke test
+**Stack**: Next.js 16 on Vercel · Convex cloud backend · Clerk auth · OpenRouter AI
+**URL**: `spc.surfbible.in` (subdomain on Cloudflare-managed domain)
+**Last updated**: 2026-04-14
 
 ---
 
-## Step 1 — Push code to GitHub
+## Cost at a glance
 
-Make sure your latest code is pushed:
+All services have a free tier that covers this app at typical community-scale usage.
+
+| Service | Free tier | When you'd pay |
+| ------- | --------- | -------------- |
+| **Vercel** (Hobby) | 100 GB bandwidth, unlimited deployments | Adding team members (Pro = $20/mo) |
+| **Convex** (free) | 1 M function calls/mo, 1 GB storage, real-time | >1 M calls/mo or >1 GB storage |
+| **Clerk** (free) | 10,000 MAU, unlimited sign-ins | >10,000 monthly active users |
+| **OpenRouter** | Pay-per-token, no monthly fee | Each AI chat message (~$0.0001–$0.001) |
+
+**Realistic monthly cost for a small prayer hall community: $0.**
+Only OpenRouter has usage-based cost — at 100 chat messages/month, expect < $0.10.
+
+---
+
+## Steps overview
+
+1. Run tests and push code to GitHub
+2. Create Vercel project, set root directory and environment variables
+3. Add `spc.surfbible.in` as a custom domain in Vercel
+4. Add CNAME record in Cloudflare (proxy OFF)
+5. Switch Clerk to Production, configure subdomain
+6. Add Clerk DNS records in Cloudflare (proxy OFF)
+7. Get Clerk production keys and update Vercel + Convex
+8. Deploy Convex backend to production
+9. Redeploy Vercel frontend
+10. Bootstrap the first superadmin
+11. Smoke test
+
+---
+
+## Step 1 — Run tests then push to GitHub
+
+```bash
+cd frontend
+npm test
+# All 33 tests must pass before proceeding
+```
+
+Then push:
 
 ```bash
 cd /home/alex/aiprj/spc
-git add .
-git commit -m "feat: migrate auth to Clerk"
+git add -A
+git commit -m "chore: pre-deployment — all tests passing"
 git push origin main
 ```
 
 ---
 
-## Step 2 — Create a Vercel account and import the project
+## Step 2 — Create Vercel project and set environment variables
 
-1. Go to [vercel.com](https://vercel.com) and sign up / sign in
-2. Click **Add New → Project**
-3. Click **Continue with GitHub** — authorise Vercel to access your repositories
-4. Find and select your `spc` repository
-5. Under **Configure Project**, set:
-   - **Root Directory:** `frontend` ← click Edit and type `frontend`
-   - **Framework Preset:** Next.js (auto-detected)
-   - **Build Command:** `npm run build` (leave as default)
-   - **Output Directory:** `.next` (leave as default)
+1. [vercel.com](https://vercel.com) → **Add New → Project**
+2. Connect GitHub, select the `spc` repository
+3. Under **Configure Project**:
+   - **Root Directory**: `frontend`
+   - **Framework Preset**: Next.js (auto-detected)
+   - **Build / Output**: leave as defaults
 
-**Do not click Deploy yet** — first add environment variables in the next step.
-
----
-
-## Step 3 — Add environment variables in Vercel
-
-Still on the Configure Project page, scroll down to **Environment Variables** and add each of these one by one:
+4. Add these environment variables before clicking Deploy:
 
 | Variable | Value |
-| --- | --- |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_...` (your Clerk dev key for now — you'll update to `pk_live_...` later) |
-| `CLERK_SECRET_KEY` | `sk_test_...` (your Clerk dev secret key for now) |
+| -------- | ----- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_...` (dev key — updated in Step 7) |
+| `CLERK_SECRET_KEY` | `sk_test_...` (dev key — updated in Step 7) |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/login` |
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/register` |
 | `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | `/dashboard` |
 | `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | `/dashboard` |
 | `NEXT_PUBLIC_CONVEX_URL` | `https://acoustic-civet-581.eu-west-1.convex.cloud` |
 
-> Use your dev keys (`pk_test_...`, `sk_test_...`) for now. You will replace them with production keys in Step 8.
-
-Click **Deploy**. Vercel will build the project and assign a URL like `https://spc-alxworld.vercel.app`. Wait for the build to complete (1–2 minutes).
+5. Click **Deploy** and wait for the build to complete (~2 minutes). Vercel assigns a temporary URL like `https://spc-xyz.vercel.app`.
 
 ---
 
-## Step 4 — Add custom domain in Vercel
+## Step 3 — Add the custom subdomain in Vercel
 
 1. Vercel dashboard → your project → **Settings → Domains**
-2. Type `surfbible.in` and click **Add**
-3. Also add `www.surfbible.in` and click **Add**
-4. Vercel will show you DNS records to configure. Note them down — they will look like:
+2. Type `spc.surfbible.in` → **Add**
+3. Vercel will show you a CNAME record to configure — note it down:
 
 | Type | Name | Value |
-| --- | --- | --- |
-| `A` | `@` | `76.76.21.21` |
-| `CNAME` | `www` | `cname.vercel-dns.com` |
-
-Keep this page open.
+| ---- | ---- | ----- |
+| `CNAME` | `spc` | `cname.vercel-dns.com` |
 
 ---
 
-## Step 5 — Add DNS records in GoDaddy for Vercel
+## Step 4 — Add the CNAME record in Cloudflare
 
-1. Go to [godaddy.com](https://godaddy.com) → sign in
-2. Click your account name (top right) → **My Products**
-3. Find `surfbible.in` → click **DNS** (or Manage DNS)
-4. You will see existing DNS records
+> **Critical**: Cloudflare's proxy must be **OFF** (grey cloud) for this record. If the proxy is on, Cloudflare intercepts traffic and Vercel cannot provision its SSL certificate.
 
-**Delete any existing A record for `@`** (GoDaddy adds a default parked-page A record — you must remove it first):
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → select `surfbible.in`
+2. **DNS → Records → Add record**
+3. Fill in:
 
-- Find the row with Type `A` and Name `@`
-- Click the trash/delete icon → confirm delete
+| Field | Value |
+| ----- | ----- |
+| Type | `CNAME` |
+| Name | `spc` |
+| Target | `cname.vercel-dns.com` |
+| Proxy status | **DNS only** (grey cloud) — click the orange cloud to toggle it off |
+| TTL | Auto |
 
-**Add the A record for Vercel:**
+4. Click **Save**
 
-- Click **Add New Record**
-- Type: `A`
-- Name: `@`
-- Value: `76.76.21.21` ← use the exact IP shown in Vercel
-- TTL: `1 Hour`
-- Click **Save**
+Go back to Vercel → **Settings → Domains** — the green checkmark next to `spc.surfbible.in` appears within a few minutes once DNS propagates.
 
-**Add the CNAME record for www:**
-
-- Click **Add New Record**
-- Type: `CNAME`
-- Name: `www`
-- Value: `cname.vercel-dns.com`
-- TTL: `1 Hour`
-- Click **Save**
-
-Go back to Vercel → **Settings → Domains** and wait for the green checkmark next to `surfbible.in`. This can take 5–30 minutes.
-
-To check propagation, run in terminal:
+Verify:
 
 ```bash
-nslookup surfbible.in
+nslookup spc.surfbible.in
+# Should resolve to a Vercel IP
 ```
 
-When it returns `76.76.21.21`, DNS is live.
+---
+
+## Step 5 — Switch Clerk to Production
+
+1. [clerk.com](https://clerk.com) → your application → top-left dropdown → switch to **Production**
+2. Enter production domain: `spc.surfbible.in`
+3. Clerk will show DNS records for domain verification and email delivery — note them all
 
 ---
 
-## Step 6 — Switch Clerk to Production
+## Step 6 — Add Clerk DNS records in Cloudflare
 
-1. Go to [clerk.com](https://clerk.com) → your application
-2. In the top-left dropdown, switch from **Development** to **Production**
-3. Clerk will ask for your **production domain** — enter `surfbible.in`
-4. Clerk will display DNS records you need to add for domain verification and email delivery. They will look similar to:
+> **Same rule applies**: all Clerk records must have Cloudflare proxy **OFF** (grey cloud / DNS only).
 
-| Type | Name | Value |
-| --- | --- | --- |
-| `CNAME` | `clk._domainkey` | `clk._domainkey.xxxx.clerk.accounts.dev` |
-| `TXT` | `clk` | `some-verification-value` |
+For each record Clerk shows you:
 
-Note down all records Clerk shows you.
+1. Cloudflare → `surfbible.in` → **DNS → Records → Add record**
+2. Set Type, Name, and Value exactly as Clerk shows
+3. Set Proxy status to **DNS only** (grey cloud)
+4. TTL: Auto → **Save**
 
----
+Typical Clerk records look like:
 
-## Step 7 — Add DNS records in GoDaddy for Clerk
+| Type | Name | Proxy |
+| ---- | ---- | ----- |
+| `CNAME` | `clk._domainkey.spc` | DNS only |
+| `TXT` | `clk.spc` | DNS only (TXT records are always DNS only) |
 
-Go back to GoDaddy → `surfbible.in` → **DNS** → **Add New Record** for each record Clerk showed you.
-
-For each record:
-
-- Set **Type** exactly as shown (CNAME or TXT)
-- Set **Name** exactly as shown (e.g. `clk._domainkey`)
-- Set **Value** exactly as shown
-- TTL: `1 Hour`
-- Click **Save**
-
-Once added, go back to Clerk and click **Verify DNS Records**. Wait for all records to show green checkmarks (5–30 minutes).
+Once all records are added, go to Clerk → **Verify DNS Records**. All checkmarks should turn green within 5–30 minutes.
 
 ---
 
-## Step 8 — Get Clerk production keys and configure everything
+## Step 7 — Get Clerk production keys and configure everything
 
-### 8a — Get production API keys
+### 7a — Production API keys
 
-Clerk dashboard → **Production** → **API Keys**:
+Clerk → **Production → API Keys**:
 
-- Copy **Publishable key** → `pk_live_...`
-- Copy **Secret key** → `sk_live_...`
+- **Publishable key** → `pk_live_...`
+- **Secret key** → `sk_live_...`
 
-### 8b — Get JWT issuer URL
+### 7b — JWT issuer URL
 
-Clerk dashboard → **Production** → **Configure → JWT Templates → convex**:
+Clerk → **Production → Configure → JWT Templates → convex** → copy the **Issuer URL**.
 
-- Copy the **Issuer URL** (e.g. `https://surfbible.in`)
+It will be `https://spc.surfbible.in` (or a Clerk-assigned URL like `https://clerk.spc.surfbible.in`). Copy it exactly as shown.
 
-### 8c — Register the webhook
+### 7c — Register the Clerk webhook
 
-Clerk dashboard → **Production** → **Configure → Webhooks → Add Endpoint**:
+Clerk → **Production → Configure → Webhooks → Add Endpoint**:
 
-- URL: `https://acoustic-civet-581.eu-west-1.convex.site/clerk-webhook`
-- Subscribe to events: `user.created`, `user.updated`, `user.deleted`
-- Click **Create**
-- Copy the **Signing Secret** (`whsec_...`)
+- **URL**: `https://acoustic-civet-581.eu-west-1.convex.site/clerk-webhook`
+- **Events**: `user.created`, `user.updated`, `user.deleted`
+- Click **Create** → copy the **Signing Secret** (`whsec_...`)
 
-### 8d — Set Convex production environment variables
+### 7d — Update Vercel with production Clerk keys
 
-Go to [dashboard.convex.dev](https://dashboard.convex.dev) → project `spc` → switch to **Production** tab → **Settings → Environment Variables**:
+Vercel → your project → **Settings → Environment Variables**:
 
-| Variable | Value |
-| --- | --- |
-| `CLERK_JWT_ISSUER_DOMAIN` | Issuer URL from Step 8b |
-| `CLERK_WEBHOOK_SECRET` | Signing secret from Step 8c |
-| `OPENROUTER_API_KEY` | Your OpenRouter API key |
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` → replace `pk_test_...` with `pk_live_...`
+- `CLERK_SECRET_KEY` → replace `sk_test_...` with `sk_live_...`
 
-Remove these if still present:
+### 7e — Set Convex production environment variables
 
-- `JWT_PRIVATE_KEY`
-- `JWKS`
-- `SITE_URL`
+[dashboard.convex.dev](https://dashboard.convex.dev) → project `spc` → **Production** tab → **Settings → Environment Variables**:
 
-### 8e — Update Vercel environment variables with production Clerk keys
+| Variable | Value | Source |
+| -------- | ----- | ------ |
+| `CLERK_JWT_ISSUER_DOMAIN` | Issuer URL from Step 7b | Clerk → JWT Templates |
+| `CLERK_WEBHOOK_SECRET` | Signing secret from Step 7c | Clerk → Webhooks |
+| `OPENROUTER_API_KEY` | Your OpenRouter key | [openrouter.ai/keys](https://openrouter.ai/keys) |
 
-Vercel dashboard → your project → **Settings → Environment Variables**:
-
-- Update `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` → replace `pk_test_...` with `pk_live_...`
-- Update `CLERK_SECRET_KEY` → replace `sk_test_...` with `sk_live_...`
+Remove any leftover keys from the old auth system if still present: `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL`.
 
 ---
 
-## Step 9 — Deploy Convex backend to production
+## Step 8 — Deploy Convex backend to production
 
 ```bash
 cd frontend
 npx convex deploy
 ```
 
-Confirm in Convex dashboard → Production → **Functions** that all functions appear.
+Confirm in Convex dashboard → **Production → Functions** that all modules appear:
+`admin`, `bookings`, `chat`, `http`, `users`
 
 ---
 
-## Step 10 — Redeploy Vercel frontend
+## Step 9 — Redeploy Vercel frontend
 
-Vercel dashboard → your project → **Deployments** → click the latest deployment → **Redeploy**.
+Vercel → your project → **Deployments** → latest → **Redeploy**.
 
-This picks up the updated production Clerk keys.
-
----
-
-## Step 11 — Promote your account to superadmin
-
-After the site is live, register your admin account at `https://surfbible.in/register`.
-
-Then promote it:
-
-1. Convex dashboard → **Production** → **Functions** → `users:seedSuperAdmin`
-2. Click **Run Function** and enter:
-
-   ```json
-   { "email": "your@email.com", "role": "superadmin" }
-   ```
-
-3. Sign out and sign back in at `https://surfbible.in` → you will be redirected to `/admin`
+This picks up the updated production Clerk keys from Step 7d.
 
 ---
 
-## Smoke test checklist
+## Step 10 — Bootstrap the first superadmin
 
-Open `https://surfbible.in` and verify:
+> `seedSuperAdmin` is an internal-only function — it cannot be called from the browser. It must be run from the Convex dashboard.
 
-- [ ] Landing page loads
-- [ ] Register a new account → email verification arrives
-- [ ] After email verification, redirected to `/dashboard`
-- [ ] Make a booking → appears as Pending
-- [ ] Sign out → redirected to home
-- [ ] Sign in → lands on `/dashboard`
-- [ ] Navigate to `/dashboard` while logged out → redirected to `/login`
-- [ ] Admin account → lands on `/admin`, can approve/reject bookings
-- [ ] AI chat widget responds and can initiate bookings
+1. Register your admin account at `https://spc.surfbible.in/register`
+2. Convex dashboard → **Production → Functions → users → seedSuperAdmin → Run Function**:
+
+```json
+{ "email": "your@email.com", "role": "superadmin" }
+```
+
+3. Sign out and sign back in — you will be redirected to `/admin`
 
 ---
 
-## Ongoing deploys
+## Step 11 — Smoke test checklist
 
-### Frontend (Vercel) — automatic
+Open `https://spc.surfbible.in` and verify:
 
-Every `git push` to `main` triggers a Vercel rebuild automatically. No action needed.
+- [ ] Landing page loads with SPC logo and content
+- [ ] `/dashboard` while logged out → redirected to `/login`
+- [ ] `/admin` while logged out → redirected to `/login`
+- [ ] Register a new account → email verification arrives from `spc.surfbible.in`
+- [ ] After verification → redirected to `/dashboard`
+- [ ] Make a booking → appears as **Pending**
+- [ ] Sign out and sign back in → lands on `/dashboard`
+- [ ] Superadmin account → lands on `/admin`, can approve/reject bookings
+- [ ] Block a date → shows as blocked in booking calendar
+- [ ] AI chat widget responds and can submit a booking via confirmation card
+- [ ] Approved booking updates instantly in user dashboard (realtime)
 
-### Backend (Convex) — run manually after changes to `convex/`
+---
+
+## Ongoing deployments
+
+### Frontend — automatic
+
+Every `git push` to `main` triggers a Vercel rebuild. No action needed.
+
+### Backend — after changes to `convex/`
 
 ```bash
 cd frontend
 npx convex deploy
 ```
 
-### Optional — automate Convex deploy via GitHub Actions
+### CI/CD via GitHub Actions
 
-Create `.github/workflows/deploy-convex.yml`:
+Create `.github/workflows/deploy.yml`:
 
 ```yaml
-name: Deploy Convex
+name: Deploy
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'frontend/convex/**'
 
 jobs:
-  deploy:
+  test-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: cd frontend && npm ci
-      - run: cd frontend && npx convex deploy
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Run tests
+        run: cd frontend && npm test
+
+      - name: Deploy Convex (only if convex/ changed)
+        if: contains(join(github.event.commits.*.modified, ','), 'frontend/convex/')
+        run: cd frontend && npx convex deploy --prod
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 ```
 
-Get your deploy key: Convex dashboard → **Settings → Deploy Keys → Generate Key**.
-Add it as a GitHub secret: your repo → **Settings → Secrets and variables → Actions → New repository secret** → name it `CONVEX_DEPLOY_KEY`.
+Get your deploy key: Convex dashboard → **Settings → Deploy Keys → Generate**.
+Add it as a GitHub secret: repo → **Settings → Secrets → Actions → New repository secret** → `CONVEX_DEPLOY_KEY`.
 
 ---
 
 ## Environment variable reference
 
-### `frontend/.env.local` (local dev only — never commit to git)
+### `frontend/.env.local` — local dev only, never commit
 
 ```env
 CONVEX_DEPLOYMENT=dev:acoustic-civet-581
 NEXT_PUBLIC_CONVEX_URL=https://acoustic-civet-581.eu-west-1.convex.cloud
-NEXT_PUBLIC_CONVEX_SITE_URL=https://acoustic-civet-581.eu-west-1.convex.site
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login
@@ -318,7 +319,7 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
 NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
 ```
 
-### Vercel dashboard (production)
+### Vercel dashboard — production frontend
 
 ```env
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
@@ -330,24 +331,41 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
 NEXT_PUBLIC_CONVEX_URL=https://acoustic-civet-581.eu-west-1.convex.cloud
 ```
 
-### Convex dashboard (production)
+### Convex dashboard — production backend
 
 ```env
-CLERK_JWT_ISSUER_DOMAIN=https://surfbible.in
+CLERK_JWT_ISSUER_DOMAIN=https://spc.surfbible.in
 CLERK_WEBHOOK_SECRET=whsec_...
-OPENROUTER_API_KEY=...
+OPENROUTER_API_KEY=sk-or-...
 ```
+
+---
+
+## Security checklist before going live
+
+- [ ] `git grep "pk_live_\|sk_live_\|whsec_\|sk-or-"` returns nothing (no secrets in repo)
+- [ ] Cloudflare proxy is **OFF** (grey cloud) on the `spc` CNAME record
+- [ ] Cloudflare proxy is **OFF** on all Clerk DNS records
+- [ ] Vercel shows green checkmark for `spc.surfbible.in`
+- [ ] `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is `pk_live_...` in Vercel production
+- [ ] `CLERK_SECRET_KEY` is `sk_live_...` in Vercel production
+- [ ] `CLERK_JWT_ISSUER_DOMAIN` in Convex matches exactly what Clerk shows in JWT Templates
+- [ ] Clerk webhook subscribed to `user.created`, `user.updated`, `user.deleted`
+- [ ] Old Convex env vars removed: `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL`
 
 ---
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| `surfbible.in` not loading | DNS not propagated yet | Wait up to 1 hour; run `nslookup surfbible.in` to check |
-| Clerk error on login | Domain not verified in Clerk Production | Complete all DNS records in Step 7 |
-| Login redirects back to `/login` | User not synced to Convex | Check Clerk → Webhooks for delivery errors; verify `CLERK_WEBHOOK_SECRET` |
-| Convex auth errors | `CLERK_JWT_ISSUER_DOMAIN` wrong | Must match the issuer URL from Clerk → JWT Templates exactly |
-| Dashboard blank after login | User record missing in `users` table | Webhook not firing — check Clerk → Webhooks → recent deliveries |
-| Build fails on Vercel | Missing env vars | Confirm all 7 variables are set in Vercel → Settings → Environment Variables |
-| AI chat not responding | `OPENROUTER_API_KEY` missing in Convex prod | Add it in Convex dashboard → Production → Environment Variables |
+| ------- | ------------ | --- |
+| `spc.surfbible.in` not loading | DNS not propagated or wrong record | Run `nslookup spc.surfbible.in`; check CNAME in Cloudflare points to `cname.vercel-dns.com` |
+| SSL error on `spc.surfbible.in` | Cloudflare proxy is ON | Toggle the CNAME record to **DNS only** (grey cloud) in Cloudflare |
+| Vercel domain stuck on "pending" | Cloudflare proxy blocking verification | Same fix — turn proxy OFF on the `spc` CNAME record |
+| Clerk error on login | Domain not verified | Check all Clerk DNS records are in Cloudflare with proxy OFF, then re-verify in Clerk |
+| Login redirects back to `/login` | User not synced to Convex | Check Clerk → Webhooks → recent deliveries; verify `CLERK_WEBHOOK_SECRET` in Convex |
+| Convex auth errors | `CLERK_JWT_ISSUER_DOMAIN` mismatch | Must exactly match the issuer URL from Clerk → JWT Templates |
+| Dashboard blank after login | User record missing | Webhook not firing — check Clerk → Webhooks → recent deliveries |
+| Build fails on Vercel | Missing env var | Confirm all 7 variables are set in Vercel → Settings → Environment Variables |
+| AI chat not responding | `OPENROUTER_API_KEY` missing | Add it in Convex dashboard → Production → Environment Variables |
+| `seedSuperAdmin` not in browser | Expected — it's internal only | Use Convex dashboard → Functions → users → seedSuperAdmin → Run Function |

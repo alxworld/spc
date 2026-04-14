@@ -28,24 +28,32 @@ export const getAllBookings = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
     const bookings = await ctx.db.query("bookings").order("desc").take(500);
-    return await Promise.all(
-      bookings.map(async (b) => {
-        const user = await ctx.db.get(b.userId);
-        return {
-          id: b._id,
-          userId: b.userId,
-          userName: user?.name ?? "Unknown",
-          userEmail: user?.email ?? "",
-          date: b.date,
-          startTime: b.startTime,
-          endTime: b.endTime,
-          purpose: b.purpose,
-          attendees: b.attendees,
-          status: b.status,
-          createdAt: b._creationTime,
-        };
-      })
+
+    // Deduplicate user lookups to avoid N+1 queries
+    const uniqueUserIds = [...new Set(bookings.map((b) => b.userId.toString()))];
+    const userRecords = await Promise.all(
+      uniqueUserIds.map((id) => ctx.db.get(id as typeof bookings[0]["userId"]))
     );
+    const userMap = new Map(
+      userRecords.filter(Boolean).map((u) => [u!._id.toString(), u!])
+    );
+
+    return bookings.map((b) => {
+      const user = userMap.get(b.userId.toString());
+      return {
+        id: b._id,
+        userId: b.userId,
+        userName: user?.name ?? "Unknown",
+        userEmail: user?.email ?? "",
+        date: b.date,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        purpose: b.purpose,
+        attendees: b.attendees,
+        status: b.status,
+        createdAt: b._creationTime,
+      };
+    });
   },
 });
 
@@ -86,6 +94,8 @@ export const blockDate = mutation({
   args: { date: v.string(), reason: v.string() },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
+    if (args.reason.length > 200)
+      throw new ConvexError("Reason must be 200 characters or less");
     const existing = await ctx.db
       .query("blockedDates")
       .withIndex("by_date", (q) => q.eq("date", args.date))
