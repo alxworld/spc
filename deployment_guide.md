@@ -76,7 +76,7 @@ git push origin main
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/register` |
 | `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | `/dashboard` |
 | `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | `/dashboard` |
-| `NEXT_PUBLIC_CONVEX_URL` | `https://acoustic-civet-581.eu-west-1.convex.cloud` |
+| `NEXT_PUBLIC_CONVEX_URL` | `https://artful-donkey-374.convex.cloud` |
 
 5. Click **Deploy** and wait for the build to complete (~2 minutes). Vercel assigns a temporary URL like `https://spc-xyz.vercel.app`.
 
@@ -172,7 +172,7 @@ It will be `https://spc.surfbible.in` (or a Clerk-assigned URL like `https://cle
 
 Clerk → **Production → Configure → Webhooks → Add Endpoint**:
 
-- **URL**: `https://acoustic-civet-581.eu-west-1.convex.site/clerk-webhook`
+- **URL**: `https://artful-donkey-374.convex.site/clerk-webhook`
 - **Events**: `user.created`, `user.updated`, `user.deleted`
 - Click **Create** → copy the **Signing Secret** (`whsec_...`)
 
@@ -328,7 +328,7 @@ NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login
 NEXT_PUBLIC_CLERK_SIGN_UP_URL=/register
 NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
 NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
-NEXT_PUBLIC_CONVEX_URL=https://acoustic-civet-581.eu-west-1.convex.cloud
+NEXT_PUBLIC_CONVEX_URL=https://artful-donkey-374.convex.cloud
 ```
 
 ### Convex dashboard — production backend
